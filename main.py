@@ -8,6 +8,8 @@ from dotenv import load_dotenv
 load_dotenv()
 
 TOKEN = os.getenv("TOKEN")
+print("TOKEN:", TOKEN)
+print("長さ:", len(TOKEN) if TOKEN else None)
 
 
 # Intents
@@ -28,17 +30,18 @@ bot = commands.Bot(
 # 起動時
 @bot.event
 async def on_ready():
-    print("Bot名:", bot.user.name)
-    print("Bot ID:", bot.user.id)
     print(f"{bot.user} が起動しました！")
 
     try:
         synced = await bot.tree.sync()
-        print(f"{len(synced)}個のスラッシュコマンドを同期しました！")
+
+        print(f"{len(synced)}個のコマンドを同期しました")
+
+        for cmd in synced:
+            print(cmd.name)
 
     except Exception as e:
-        print(f"同期エラー: {e}")
-
+        print("同期エラー:", e)
 
 # スラッシュコマンドエラー表示
 @bot.tree.error
@@ -84,6 +87,8 @@ async def load_extensions():
     print("logs 読み込み完了")
     await bot.load_extension("cogs.verify")
     print("verify 読み込み完了")
+    await bot.load_extension("cogs.ticket")
+    print("ticket 読み込み完了")
 
 
 # Bot起動
