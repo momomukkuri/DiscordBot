@@ -1,0 +1,1194 @@
+import discord
+from discord.ext import commands
+import json
+import os
+import datetime
+import asyncio
+
+
+class Events(commands.Cog):
+
+    def __init__(self, bot):
+
+        self.bot = bot
+
+        self.welcome_file = "welcome.json"
+        self.ban_count = {}
+        self.channel_delete_count = {}
+        self.role_delete_count = {}
+        self.antiraid = {}
+
+
+    # =========================
+    # Log送信
+    # =========================
+    async def send_log(
+        self,
+        guild,
+        embed,
+        log_type="monitor"
+    ):
+
+        if not os.path.exists("logs.json"):
+            return
+
+
+        try:
+
+            with open(
+                "logs.json",
+                "r",
+                encoding="utf-8"
+            ) as f:
+
+                data = json.load(f)
+
+
+            guild_data = data.get(
+                str(guild.id),
+                {}
+            )
+
+
+            channel_id = guild_data.get(
+                log_type
+            )
+
+
+            if not channel_id:
+                return
+
+
+            channel = guild.get_channel(
+                channel_id
+            )
+
+
+            if channel:
+
+                await channel.send(
+                    embed=embed
+                )
+
+
+        except Exception as e:
+
+            print(
+                "Log Error:",
+                e
+            )
+    # =========================
+    # Punish User
+    # =========================
+    async def punish_user(
+        self,
+        guild,
+        user,
+        reason
+    ):
+
+        try:
+
+            member = guild.get_member(user.id)
+
+            if member:
+
+                await member.timeout(
+                    datetime.timedelta(minutes=10),
+                    reason=reason
+                )
+
+
+                embed = discord.Embed(
+                    title="🚨 Anti Raid処罰",
+                    color=discord.Color.red(),
+                    timestamp=datetime.datetime.now()
+                )
+
+
+                embed.add_field(
+                    name="対象",
+                    value=member.mention,
+                    inline=False
+                )
+
+
+                embed.add_field(
+                    name="理由",
+                    value=reason,
+                    inline=False
+                )
+
+
+                await self.send_log(
+                    guild,
+                    embed,
+                    "monitor"
+                )
+
+
+        except Exception as e:
+
+            print(
+                "Punish Error:",
+                e
+            )
+
+
+    # =========================
+    # UNBAN検知
+    # =========================
+    @commands.Cog.listener()
+    async def on_member_unban(
+        self,
+        guild,
+        user
+    ):
+
+        await asyncio.sleep(1)
+
+
+        executor="不明"
+        reason="理由なし"
+
+
+        async for entry in guild.audit_logs(
+            limit=5,
+            action=discord.AuditLogAction.unban
+        ):
+
+            if entry.target.id == user.id:
+
+                executor=entry.user.mention
+                reason=entry.reason or "理由なし"
+                break
+
+
+
+        embed=discord.Embed(
+            title="🔓 BAN解除検知",
+            color=discord.Color.green(),
+            timestamp=datetime.datetime.now()
+        )
+
+
+        embed.add_field(
+            name="対象",
+            value=f"{user}\n`{user.id}`",
+            inline=False
+        )
+
+
+        embed.add_field(
+            name="実行者",
+            value=executor,
+            inline=False
+        )
+
+
+        embed.add_field(
+            name="理由",
+            value=reason,
+            inline=False
+        )
+
+
+        await self.send_log(
+            guild,
+            embed,
+            "monitor"
+        )
+    # =========================
+    # BAN検知
+    # =========================
+
+    @commands.Cog.listener()
+    async def on_member_ban(
+        self,
+        guild,
+        user
+    ):
+
+        await asyncio.sleep(1)
+
+        executor = "不明"
+        reason = "理由なし"
+
+
+        async for entry in guild.audit_logs(
+            limit=5,
+            action=discord.AuditLogAction.ban
+        ):
+
+            if entry.target.id == user.id:
+
+                executor = entry.user.mention
+                reason = entry.reason or "理由なし"
+                break
+
+
+
+        embed = discord.Embed(
+            title="🔨 BAN検知",
+            color=discord.Color.red(),
+            timestamp=datetime.datetime.now()
+        )
+
+
+        embed.add_field(
+            name="対象",
+            value=f"{user}\n`{user.id}`",
+            inline=False
+        )
+
+
+        embed.add_field(
+            name="実行者",
+            value=executor,
+            inline=False
+        )
+
+
+        embed.add_field(
+            name="理由",
+            value=reason,
+            inline=False
+        )
+
+
+        await self.send_log(
+            guild,
+            embed,
+            "monitor"
+        )
+
+
+        # Anti Raid BAN
+
+        now = datetime.datetime.now().timestamp()
+
+        guild_id = guild.id
+
+
+        if guild_id not in self.ban_count:
+            self.ban_count[guild_id] = []
+
+
+        self.ban_count[guild_id].append(now)
+
+
+        self.ban_count[guild_id] = [
+            x for x in self.ban_count[guild_id]
+            if now - x < 10
+        ]
+
+
+        if len(self.ban_count[guild_id]) >= 5:
+
+            entry_user = None
+
+
+            async for entry in guild.audit_logs(
+                limit=1,
+                action=discord.AuditLogAction.ban
+            ):
+
+                entry_user = entry.user
+                break
+
+
+            if entry_user:
+
+                await self.punish_user(
+                    guild,
+                    entry_user,
+                    "短時間大量BANによるAnti Raid"
+                )
+    
+    # =========================
+    # Kick / Leave
+    # =========================
+    @commands.Cog.listener()
+    async def on_member_remove(
+        self,
+        member
+    ):
+
+        await asyncio.sleep(1)
+
+        executor = None
+        reason = "理由なし"
+
+
+        async for entry in member.guild.audit_logs(
+            limit=5,
+            action=discord.AuditLogAction.kick
+        ):
+
+            if entry.target.id == member.id:
+
+                executor = entry.user.mention
+                reason = entry.reason or "理由なし"
+                break
+
+
+        # Kickの場合
+
+        if executor:
+
+            embed = discord.Embed(
+                title="👢 Kick検知",
+                color=discord.Color.orange(),
+                timestamp=datetime.datetime.now()
+            )
+
+            embed.add_field(
+                name="対象",
+                value=f"{member}\n`{member.id}`",
+                inline=False
+            )
+
+            embed.add_field(
+                name="実行者",
+                value=executor,
+                inline=False
+            )
+
+            embed.add_field(
+                name="理由",
+                value=reason,
+                inline=False
+            )
+
+
+            await self.send_log(
+                member.guild,
+                embed,
+                "monitor"
+            )
+
+            return
+
+
+        # 普通の退出
+
+        embed = discord.Embed(
+            title="📤 メンバー退出",
+            color=discord.Color.red(),
+            timestamp=datetime.datetime.now()
+        )
+
+
+        embed.add_field(
+            name="ユーザー",
+            value=f"{member}\n`{member.id}`",
+            inline=False
+        )
+
+
+        await self.send_log(
+            member.guild,
+            embed,
+            "joinleave"
+        )
+    # =========================
+    # Join
+    # =========================
+    @commands.Cog.listener()
+    async def on_member_join(self, member):
+
+        print(f"参加イベント発生: {member} ({member.id})")
+
+        embed = discord.Embed(
+            title="📥 メンバー参加",
+            color=discord.Color.green(),
+            timestamp=datetime.datetime.now()
+        )
+
+        embed.add_field(
+            name="ユーザー",
+            value=f"{member.mention}\n`{member.id}`",
+            inline=False
+        )
+
+        await self.send_log(
+            member.guild,
+            embed,
+            "joinleave"
+        )
+
+        try:
+
+            # =========================
+            # 未認証ロール付与
+            # =========================
+            if os.path.exists("verify.json"):
+
+                with open(
+                    "verify.json",
+                    "r",
+                    encoding="utf-8"
+                ) as f:
+
+                    verify_data = json.load(f)
+
+                guild_verify = verify_data.get(
+                    str(member.guild.id),
+                    {}
+                )
+
+                role_id = guild_verify.get("unverified")
+
+                if role_id:
+
+                    role = member.guild.get_role(role_id)
+
+                    if role:
+
+                        await member.add_roles(
+                            role,
+                            reason="未認証ロール付与"
+                        )
+
+            # =========================
+            # Welcome
+            # =========================
+            if os.path.exists(self.welcome_file):
+
+                with open(
+                    self.welcome_file,
+                    "r",
+                    encoding="utf-8"
+                ) as f:
+
+                    welcome_data = json.load(f)
+
+                guild_data = welcome_data.get(
+                    str(member.guild.id),
+                    {}
+                )
+
+                channel_id = guild_data.get("channel")
+
+                if channel_id:
+
+                    channel = member.guild.get_channel(channel_id)
+
+                    if channel:
+
+                        welcome = discord.Embed(
+                            title="🎉 新しいメンバー",
+                            description=f"{member.mention} さんようこそ！",
+                            color=discord.Color.green()
+                        )
+
+                        await channel.send(embed=welcome)
+
+            # =========================
+            # DM送信
+            # =========================
+            dm_embed = discord.Embed(
+                title="🎉 サーバーへようこそ！",
+                description=(
+                    f"**{member.guild.name}** に参加していただきありがとうございます！\n\n"
+                    "📜 ルールを確認して楽しく過ごしてください！"
+                ),
+                color=discord.Color.blue()
+            )
+
+            try:
+
+                await member.send(embed=dm_embed)
+
+            except discord.Forbidden:
+                pass
+
+        except Exception as e:
+
+            print(
+                "Welcome Error:",
+                repr(e)
+            )
+    # =========================
+    # Role Create
+    # =========================
+    @commands.Cog.listener()
+    async def on_guild_role_create(self, role):
+
+        executor = "不明"
+
+        try:
+            now = datetime.datetime.now(datetime.timezone.utc)
+
+            async for entry in role.guild.audit_logs(
+                limit=5,
+                action=discord.AuditLogAction.role_create
+            ):
+
+                if entry.target.id != role.id:
+                    continue
+
+                if (now - entry.created_at).total_seconds() > 5:
+                    continue
+
+                executor = entry.user.mention
+                break
+
+        except Exception as e:
+            print("Role Create Audit Error:", e)
+
+        embed = discord.Embed(
+            title="🎭 ロール作成",
+            color=discord.Color.green(),
+            timestamp=datetime.datetime.now()
+        )
+
+        embed.add_field(
+            name="ロール",
+            value=f"{role.name}\n`{role.id}`",
+            inline=False
+        )
+
+        embed.add_field(
+            name="実行者",
+            value=executor,
+            inline=False
+        )
+
+        await self.send_log(
+            role.guild,
+            embed,
+            "monitor"
+        )
+
+
+    # =========================
+    # Role Delete
+    # =========================
+    @commands.Cog.listener()
+    async def on_guild_role_delete(self, role):
+
+        executor = "不明"
+
+        try:
+            async for entry in role.guild.audit_logs(
+                limit=5,
+                action=discord.AuditLogAction.role_delete
+            ):
+                executor = entry.user.mention
+                break
+
+        except Exception as e:
+            print("Role Delete Audit Error:", e)
+
+        embed = discord.Embed(
+            title="🗑 ロール削除",
+            color=discord.Color.red(),
+            timestamp=datetime.datetime.now()
+        )
+
+        embed.add_field(
+            name="ロール",
+            value=f"{role.name}\n`{role.id}`",
+            inline=False
+        )
+
+        embed.add_field(
+            name="実行者",
+            value=executor,
+            inline=False
+        )
+
+        await self.send_log(
+            role.guild,
+            embed,
+            "monitor"
+        )
+
+        now = datetime.datetime.now().timestamp()
+        guild_id = role.guild.id
+
+        if guild_id not in self.role_delete_count:
+            self.role_delete_count[guild_id] = []
+
+        self.role_delete_count[guild_id].append(now)
+
+        self.role_delete_count[guild_id] = [
+            x for x in self.role_delete_count[guild_id]
+            if now - x < 10
+        ]
+
+        if len(self.role_delete_count[guild_id]) >= 5:
+
+            embed = discord.Embed(
+                title="🚨 ロール削除荒らし検知",
+                description="10秒以内に5個以上ロール削除",
+                color=discord.Color.red()
+            )
+
+            await self.send_log(
+                role.guild,
+                embed,
+                "monitor"
+            )
+
+            self.role_delete_count[guild_id].clear()
+    # =========================
+    # Channel Create
+    # =========================
+    @commands.Cog.listener()
+    async def on_guild_channel_create(
+        self,
+        channel
+    ):
+
+        executor = "不明"
+
+
+        try:
+
+            async for entry in channel.guild.audit_logs(
+                limit=5,
+                action=discord.AuditLogAction.channel_create
+            ):
+
+                if entry.target.id == channel.id:
+
+                    executor = entry.user.mention
+                    break
+
+
+        except Exception as e:
+
+            print(
+                "Channel Create Audit Error:",
+                e
+            )
+
+
+        embed = discord.Embed(
+            title="📁 チャンネル作成",
+            color=discord.Color.green(),
+            timestamp=datetime.datetime.now()
+        )
+
+
+        embed.add_field(
+            name="チャンネル",
+            value=f"{channel.name}\n`{channel.id}`",
+            inline=False
+        )
+
+
+        embed.add_field(
+            name="実行者",
+            value=executor,
+            inline=False
+        )
+
+
+        await self.send_log(
+            channel.guild,
+            embed,
+            "monitor"
+        )
+    # =========================
+    # Channel Delete
+    # =========================
+    @commands.Cog.listener()
+    async def on_guild_channel_delete(
+        self,
+        channel
+    ):
+
+        executor = "不明"
+
+
+        try:
+
+            async for entry in channel.guild.audit_logs(
+                limit=5,
+                action=discord.AuditLogAction.channel_delete
+            ):
+
+                if entry.target.id == channel.id:
+
+                    executor = entry.user.mention
+                    break
+
+
+        except Exception as e:
+
+            print(
+                "Channel Delete Audit Error:",
+                e
+            )
+
+
+        embed = discord.Embed(
+            title="🗑 チャンネル削除",
+            color=discord.Color.red(),
+            timestamp=datetime.datetime.now()
+        )
+
+
+        embed.add_field(
+            name="チャンネル",
+            value=f"{channel.name}\n`{channel.id}`",
+            inline=False
+        )
+
+
+        embed.add_field(
+            name="実行者",
+            value=executor,
+            inline=False
+        )
+
+
+        await self.send_log(
+            channel.guild,
+            embed,
+            "monitor"
+        )
+    # =========================
+    # Anti Channel Delete Raid
+    # =========================
+
+        now = datetime.datetime.now().timestamp()
+
+
+        guild_id = channel.guild.id
+
+
+        if guild_id not in self.channel_delete_count:
+
+            self.channel_delete_count[guild_id] = []
+
+
+        self.channel_delete_count[guild_id].append(
+            now
+        )
+
+
+        self.channel_delete_count[guild_id] = [
+            x for x in self.channel_delete_count[guild_id]
+            if now - x < 10
+        ]
+
+
+        if len(self.channel_delete_count[guild_id]) >= 3:
+
+
+            embed = discord.Embed(
+                title="🚨 チャンネル削除荒らし検知",
+                description="10秒以内に3個以上削除されました",
+                color=discord.Color.red()
+            )
+
+
+            await self.send_log(
+                channel.guild,
+                embed,
+                "monitor"
+            )
+   
+
+            self.channel_delete_count[guild_id].clear()
+    # =========================
+    # Channel Update
+    # =========================
+    @commands.Cog.listener()
+    async def on_guild_channel_update(self, before, after):
+
+        embed = discord.Embed(
+            title="⚙️ チャンネル変更",
+            color=discord.Color.orange(),
+            timestamp=datetime.datetime.now()
+        )
+
+        changed = False
+
+        embed.add_field(
+            name="チャンネル",
+            value=after.mention,
+            inline=False
+        )
+
+        if before.name != after.name:
+            changed = True
+            embed.add_field(
+                name="名前変更",
+                value=f"{before.name} → {after.name}",
+                inline=False
+            )
+
+        if before.topic != after.topic:
+            changed = True
+            embed.add_field(
+                name="トピック変更",
+                value="変更あり",
+                inline=False
+            )
+        if before.overwrites != after.overwrites:
+            changed = True
+            embed.add_field(
+                name="権限変更",
+                value="権限設定が変更されました",
+                inline=False
+            )
+
+        if changed:
+            await self.send_log(
+                after.guild,
+                embed,
+                "monitor"
+            )
+
+    # =========================
+    # Voice State Update
+    # =========================
+    @commands.Cog.listener()
+    async def on_voice_state_update(
+        self,
+        member,
+        before,
+        after
+    ):
+
+        if member.bot:
+            return
+
+
+        embed = None
+
+
+
+        # VC参加
+        if before.channel is None and after.channel is not None:
+
+
+            embed = discord.Embed(
+                title="🔊 VC参加",
+                color=discord.Color.green(),
+                timestamp=datetime.datetime.now()
+            )
+
+
+            embed.add_field(
+                name="ユーザー",
+                value=member.mention,
+                inline=False
+            )
+
+
+            embed.add_field(
+                name="参加先",
+                value=after.channel.mention,
+                inline=False
+            )
+
+
+
+        # VC退出
+        elif before.channel is not None and after.channel is None:
+
+
+            embed = discord.Embed(
+                title="🔇 VC退出",
+                color=discord.Color.red(),
+                timestamp=datetime.datetime.now()
+            )
+
+
+            embed.add_field(
+                name="ユーザー",
+                value=member.mention,
+                inline=False
+            )
+
+
+            embed.add_field(
+                name="退出元",
+                value=before.channel.mention,
+                inline=False
+            )
+
+
+
+        # VC移動
+        elif (
+            before.channel is not None
+            and after.channel is not None
+            and before.channel.id != after.channel.id
+        ):
+
+
+            embed = discord.Embed(
+                title="🔀 VC移動",
+                color=discord.Color.orange(),
+                timestamp=datetime.datetime.now()
+            )
+
+
+            embed.add_field(
+                name="ユーザー",
+                value=member.mention,
+                inline=False
+            )
+
+
+            embed.add_field(
+                name="移動前",
+                value=before.channel.mention,
+                inline=False
+            )
+
+
+            embed.add_field(
+                name="移動後",
+                value=after.channel.mention,
+                inline=False
+            )
+
+
+
+        if embed:
+
+
+            await self.send_log(
+                member.guild,
+                embed,
+                "monitor"
+            ) 
+    # =========================
+    # Guild Update
+    # =========================
+    @commands.Cog.listener()
+    async def on_guild_update(
+        self,
+        before,
+        after
+    ):
+
+        changes = []
+
+
+        if before.name != after.name:
+
+            changes.append(
+                f"名前変更\n`{before.name}` → `{after.name}`"
+            )
+
+
+        if before.icon != after.icon:
+
+            changes.append(
+                "サーバーアイコン変更"
+            )
+
+
+        if before.description != after.description:
+
+            changes.append(
+                "サーバー説明変更"
+            )
+
+
+        if not changes:
+            return
+
+
+
+        embed = discord.Embed(
+            title="⚙️ サーバー設定変更",
+            color=discord.Color.orange(),
+            timestamp=datetime.datetime.now()
+        )
+
+
+        embed.add_field(
+            name="変更内容",
+            value="\n\n".join(changes),
+            inline=False
+        )
+
+
+        await self.send_log(
+            after,
+            embed,
+            "monitor"
+        ) 
+    # =========================
+    # Invite Create
+    # =========================
+    @commands.Cog.listener()
+    async def on_invite_create(
+        self,
+        invite
+    ):
+
+
+        embed = discord.Embed(
+            title="🔗 招待作成",
+            color=discord.Color.green(),
+            timestamp=datetime.datetime.now()
+        )
+
+
+        embed.add_field(
+            name="作成者",
+            value=invite.inviter.mention if invite.inviter else "不明",
+            inline=False
+        )
+
+
+        embed.add_field(
+            name="チャンネル",
+            value=invite.channel.mention if invite.channel else "不明",
+            inline=False
+        )
+
+
+        embed.add_field(
+            name="コード",
+            value=f"`{invite.code}`",
+            inline=False
+        )
+
+
+        if invite.max_age:
+
+            embed.add_field(
+                name="期限",
+                value=f"{invite.max_age}秒",
+                inline=False
+            )
+
+        else:
+
+            embed.add_field(
+                name="期限",
+                value="無期限",
+                inline=False
+            )
+
+
+        await self.send_log(
+            invite.guild,
+            embed,
+            "monitor"
+        )  
+    # =========================
+    # Invite Delete
+    # =========================
+    @commands.Cog.listener()
+    async def on_invite_delete(
+        self,
+        invite
+    ):
+
+
+        embed = discord.Embed(
+            title="🗑 招待削除",
+            color=discord.Color.red(),
+            timestamp=datetime.datetime.now()
+        )
+
+
+        embed.add_field(
+            name="コード",
+            value=f"`{invite.code}`",
+            inline=False
+        )
+
+
+        if invite.channel:
+
+            embed.add_field(
+                name="チャンネル",
+                value=invite.channel.mention,
+                inline=False
+            )
+
+
+        await self.send_log(
+            invite.guild,
+            embed,
+            "monitor"
+        )
+    # =========================
+    # Role Update
+    # =========================
+    @commands.Cog.listener()
+    async def on_guild_role_update(
+        self,
+        before,
+        after
+    ):
+
+        changes = []
+
+
+        if before.name != after.name:
+
+            changes.append(
+                f"名前変更\n`{before.name}` → `{after.name}`"
+            )
+
+
+        if before.permissions != after.permissions:
+
+            changes.append(
+                "権限変更"
+            )
+
+
+        if before.color != after.color:
+
+            changes.append(
+                "色変更"
+            )
+
+
+        if not changes:
+            return
+
+
+
+        embed = discord.Embed(
+            title="🎭 ロール変更",
+            color=discord.Color.orange(),
+            timestamp=datetime.datetime.now()
+        )
+
+
+        embed.add_field(
+            name="ロール",
+            value=f"{after.name}\n`{after.id}`",
+            inline=False
+        )
+
+
+        embed.add_field(
+            name="変更内容",
+            value="\n".join(changes),
+            inline=False
+        )
+
+
+        await self.send_log(
+            after.guild,
+            embed,
+            "monitor"
+        )
+
+# =========================
+# Setup
+# =========================
+
+async def setup(bot):
+
+    await bot.add_cog(
+        Events(bot)
+    )
