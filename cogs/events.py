@@ -17,66 +17,31 @@ class Events(commands.Cog):
         self.channel_delete_count = {}
         self.role_delete_count = {}
         self.antiraid = {}
-
-
-    # =========================
-    # Log送信
-    # =========================
     async def send_log(
         self,
         guild,
         embed,
-        log_type="monitor"
+        log_type="joinleave"
     ):
-
         if not os.path.exists("logs.json"):
             return
 
+        with open("logs.json", "r", encoding="utf-8") as f:
+            data = json.load(f)
 
-        try:
+        guild_data = data.get(str(guild.id), {})
+        channel_id = guild_data.get(log_type)
 
-            with open(
-                "logs.json",
-                "r",
-                encoding="utf-8"
-            ) as f:
+        if not channel_id:
+            return
 
-                data = json.load(f)
+        channel = guild.get_channel(channel_id)
 
-
-            guild_data = data.get(
-                str(guild.id),
-                {}
-            )
+        if channel:
+            await channel.send(embed=embed)
 
 
-            channel_id = guild_data.get(
-                log_type
-            )
 
-
-            if not channel_id:
-                return
-
-
-            channel = guild.get_channel(
-                channel_id
-            )
-
-
-            if channel:
-
-                await channel.send(
-                    embed=embed
-                )
-
-
-        except Exception as e:
-
-            print(
-                "Log Error:",
-                e
-            )
     # =========================
     # Punish User
     # =========================
@@ -309,23 +274,32 @@ class Events(commands.Cog):
     # Kick / Leave
     # =========================
     @commands.Cog.listener()
-    async def on_member_remove(
-        self,
-        member
-    ):
+    async def on_member_remove(self, member):
+
+        print(f"退出イベント発生: {member}")
+
+        print("退出イベント発生")
 
         await asyncio.sleep(1)
 
-        executor = None
+        executor = "不明"
         reason = "理由なし"
-
 
         async for entry in member.guild.audit_logs(
             limit=5,
             action=discord.AuditLogAction.kick
         ):
+            now = datetime.datetime.now(datetime.timezone.utc)
 
-            if entry.target.id == member.id:
+            async for entry in member.guild.audit_logs(
+                limit=5,
+                action=discord.AuditLogAction.kick
+            ):
+                if entry.target.id != member.id:
+                    continue
+
+                if (now - entry.created_at).total_seconds() > 5:
+                    continue
 
                 executor = entry.user.mention
                 reason = entry.reason or "理由なし"
@@ -334,7 +308,7 @@ class Events(commands.Cog):
 
         # Kickの場合
 
-        if executor:
+        if executor != "不明":
 
             embed = discord.Embed(
                 title="👢 Kick検知",
@@ -373,18 +347,66 @@ class Events(commands.Cog):
         # 普通の退出
 
         embed = discord.Embed(
-            title="📤 メンバー退出",
+            description=f"**{member.display_name}** がサーバーを退出しました",
             color=discord.Color.red(),
-            timestamp=datetime.datetime.now()
+            timestamp=discord.utils.utcnow()
         )
 
+        embed.set_author(
+            name=str(member),
+            icon_url=member.display_avatar.url
+        )
+
+        embed.set_thumbnail(
+            url=member.display_avatar.url
+        )
+
+        created = member.created_at
+        now = discord.utils.utcnow()
+        delta = now - created
+
+        days = delta.days
+        hours = delta.seconds // 3600
+        minutes = (delta.seconds % 3600) // 60
 
         embed.add_field(
-            name="ユーザー",
-            value=f"{member}\n`{member.id}`",
+            name="📅 アカウント作成",
+            value=(
+                f"<t:{int(created.timestamp())}:F>\n"
+                f"経過: **{days}日 {hours}時間 {minutes}分**"
+            ),
             inline=False
         )
 
+        if member.joined_at:
+            joined = member.joined_at
+            stay = now - joined
+
+            d = stay.days
+            h = stay.seconds // 3600
+            m = (stay.seconds % 3600) // 60
+
+            embed.add_field(
+                name="📥 サーバー滞在期間",
+                value=(
+                    f"<t:{int(joined.timestamp())}:F>\n"
+                    f"滞在: **{d}日 {h}時間 {m}分**"
+                ),
+                inline=False
+            )
+
+        embed.add_field(
+            name="👥 退出後の人数",
+            value=f"{member.guild.member_count}人",
+            inline=False
+        )
+
+        if member.bot:
+            embed.add_field(
+                name="🤖 アカウント",
+                value="Bot",
+                inline=True
+            )
 
         await self.send_log(
             member.guild,
@@ -399,17 +421,59 @@ class Events(commands.Cog):
 
         print(f"参加イベント発生: {member} ({member.id})")
 
+        now = discord.utils.utcnow()
+
+        created = member.created_at
+
+        delta = now - created
+
+        days = delta.days
+        hours = delta.seconds // 3600
+        minutes = (delta.seconds % 3600) // 60
+
         embed = discord.Embed(
-            title="📥 メンバー参加",
+            description=f"**{member.display_name}** がサーバーに参加しました",
             color=discord.Color.green(),
-            timestamp=datetime.datetime.now()
+            timestamp=discord.utils.utcnow()
+        )
+
+        embed.set_author(
+            name=str(member),
+            icon_url=member.display_avatar.url
+        )
+
+        embed.set_thumbnail(
+            url=member.display_avatar.url
         )
 
         embed.add_field(
-            name="ユーザー",
-            value=f"{member.mention}\n`{member.id}`",
+            name="📅 アカウント作成",
+            value=(
+                f"<t:{int(created.timestamp())}:F>\n"
+                f"経過: **{days}日 {hours}時間 {minutes}分**"
+            ),
             inline=False
         )
+
+        embed.add_field(
+            name="👥 現在のサーバー人数",
+            value=f"{member.guild.member_count}人",
+            inline=False
+        )
+
+        if member.bot:
+            embed.add_field(
+                name="🤖 アカウント",
+                value="Bot",
+                inline=True
+            )
+
+        if days < 7:
+            embed.add_field(
+                name="⚠ 注意",
+                value="作成から7日以内のアカウントです。",
+                inline=False
+            )
 
         await self.send_log(
             member.guild,
@@ -491,6 +555,7 @@ class Events(commands.Cog):
                 title="🎉 サーバーへようこそ！",
                 description=(
                     f"**{member.guild.name}** に参加していただきありがとうございます！\n\n"
+                    "認証したあと\n"
                     "📜 ルールを確認して楽しく過ごしてください！"
                 ),
                 color=discord.Color.blue()
@@ -1182,6 +1247,7 @@ class Events(commands.Cog):
             embed,
             "monitor"
         )
+
 
 # =========================
 # Setup

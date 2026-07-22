@@ -50,6 +50,8 @@ def get_guild_data(guild_id: int):
                 "サーバーへようこそ！\n\n"
                 "下のボタンを押して認証してください。",
 
+            "rules": "",
+            
             "button": "✅ 認証する",
 
             "color": 0x5865F2,
@@ -60,6 +62,47 @@ def get_guild_data(guild_id: int):
         save_verify(data)
 
     return data
+class RuleModal(discord.ui.Modal):
+
+    def __init__(self, guild_id: int):
+        super().__init__(title="サーバールール設定")
+
+        data = get_guild_data(guild_id)
+        gid = str(guild_id)
+
+        self.rules = discord.ui.TextInput(
+            label="ルール",
+            style=discord.TextStyle.paragraph,
+            placeholder=(
+                "① 荒らし禁止\n"
+                "② スパム禁止\n"
+                "③ 暴言禁止"
+            ),
+            default=data[gid].get("rules", ""),
+            required=True,
+            max_length=4000
+        )
+
+        self.add_item(self.rules)
+
+
+    async def on_submit(
+        self,
+        interaction: discord.Interaction
+    ):
+
+        data = get_guild_data(interaction.guild.id)
+
+        gid = str(interaction.guild.id)
+
+        data[gid]["rules"] = self.rules.value
+
+        save_verify(data)
+
+        await interaction.response.send_message(
+            "✅ ルールを保存しました。",
+            ephemeral=True
+        )
 class VerifyView(discord.ui.View):
 
     def __init__(self, label="✅ 認証する"):
@@ -223,10 +266,22 @@ class Verify(commands.Cog):
 
         save_verify(data)
 
+
+        rules = data[gid].get("rules", "ルールは設定されていません。")
+        rules = rules.replace("\r\n", "\n")
+
         embed = discord.Embed(
             title=title,
-            description=description,
             color=color_value
+        )
+
+        embed.description = (
+            f"{description}\n\n"
+            "📜 **サーバールール**\n"
+            "━━━━━━━━━━━━━━━━━━\n"
+            f"{rules}\n"
+            "━━━━━━━━━━━━━━━━━━\n\n"
+            "✅ **下のボタンを押すとルールに同意したものとみなします。**"
         )
 
         if image:
@@ -258,6 +313,19 @@ class Verify(commands.Cog):
             "✅ 認証パネルを設置しました。",
             ephemeral=True
         )
+    @app_commands.command(
+        name="setrules",
+        description="認証パネルのルールを設定します"
+    )
+    @app_commands.default_permissions(administrator=True)
+    async def setrules(
+        self,
+        interaction: discord.Interaction
+    ):
+        await interaction.response.send_modal(
+            RuleModal(interaction.guild.id)
+        )
+    
     
 
 
