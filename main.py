@@ -89,6 +89,8 @@ async def load_extensions():
     print("verify 読み込み完了")
     await bot.load_extension("cogs.ticket")
     print("ticket 読み込み完了")
+    await bot.load_extension("cogs.giveaway")
+    print("giveaway 読み込み完了")
 
 
 # Bot起動
