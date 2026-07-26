@@ -1,27 +1,37 @@
 import discord
 from discord.ext import commands
 from discord import app_commands
-import json
-import os
 
 
-ROLE_FILE = "roles.json"
+class RoleSelect(discord.ui.Select):
 
+    def __init__(self, roles):
 
-class RoleButton(discord.ui.Button):
+        options = []
 
-    def __init__(self, role_id, label, emoji):
+        for role in roles:
+            options.append(
+                discord.SelectOption(
+                    label=role.name,
+                    value=str(role.id),
+                    description=f"{role.name} を取得"
+                )
+            )
+
         super().__init__(
-            label=label,
-            emoji=emoji,
-            style=discord.ButtonStyle.primary
+            placeholder="取得したいロールを選択",
+            min_values=1,
+            max_values=1,
+            options=options,
+            custom_id="role_select"
         )
-        self.role_id = role_id
 
 
     async def callback(self, interaction: discord.Interaction):
 
-        role = interaction.guild.get_role(self.role_id)
+        role_id = int(self.values[0])
+
+        role = interaction.guild.get_role(role_id)
 
         if role is None:
             await interaction.response.send_message(
@@ -31,9 +41,12 @@ class RoleButton(discord.ui.Button):
             return
 
 
-        if role in interaction.user.roles:
+        member = interaction.user
 
-            await interaction.user.remove_roles(role)
+
+        if role in member.roles:
+
+            await member.remove_roles(role)
 
             await interaction.response.send_message(
                 f"❌ {role.name} を解除しました",
@@ -42,27 +55,24 @@ class RoleButton(discord.ui.Button):
 
         else:
 
-            await interaction.user.add_roles(role)
+            await member.add_roles(role)
 
             await interaction.response.send_message(
-                f"✅ {role.name} を付与しました",
+                f"✅ {role.name} を取得しました",
                 ephemeral=True
             )
 
 
 
-class RolePanelView(discord.ui.View):
+class RoleView(discord.ui.View):
 
     def __init__(self, roles):
+
         super().__init__(timeout=None)
 
-        for role in roles:
+        if roles:
             self.add_item(
-                RoleButton(
-                    role["id"],
-                    role["name"],
-                    role["emoji"]
-                )
+                RoleSelect(roles)
             )
 
 
@@ -70,12 +80,18 @@ class RolePanelView(discord.ui.View):
 class RolePanel(commands.Cog):
 
     def __init__(self, bot):
+
         self.bot = bot
+
+        # 再起動後もViewを有効化
+        bot.add_view(
+            RoleView([])
+        )
 
 
     @app_commands.command(
         name="rolepanel",
-        description="ロールパネルを作成します"
+        description="ロール選択パネルを作成します"
     )
     @app_commands.default_permissions(administrator=True)
     async def rolepanel(
@@ -83,30 +99,38 @@ class RolePanel(commands.Cog):
         interaction: discord.Interaction
     ):
 
+
         roles = [
-            {
-                "id": 123456789012345678,
-                "name": "ゲーム",
-                "emoji": "🎮"
-            },
-            {
-                "id": 123456789012345679,
-                "name": "開発者",
-                "emoji": "💻"
-            }
-        ]
+            role
+            for role in interaction.guild.roles
+            if role != interaction.guild.default_role
+            and role < interaction.guild.me.top_role
+        ][:25]
+
+
+        if not roles:
+
+            await interaction.response.send_message(
+                "❌ 付与可能なロールがありません。\nBotのロール位置を確認してください。",
+                ephemeral=True
+            )
+            return
+
 
 
         embed = discord.Embed(
             title="🎭 ロール選択",
-            description="ボタンを押してロールを取得できます",
+            description=(
+                "取得したいロールを選択してください。\n\n"
+                "同じロールをもう一度選択すると解除されます。"
+            ),
             color=discord.Color.blue()
         )
 
 
         await interaction.channel.send(
             embed=embed,
-            view=RolePanelView(roles)
+            view=RoleView(roles)
         )
 
 
@@ -116,5 +140,7 @@ class RolePanel(commands.Cog):
         )
 
 
+
 async def setup(bot):
+
     await bot.add_cog(RolePanel(bot))
