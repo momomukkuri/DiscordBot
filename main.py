@@ -93,6 +93,8 @@ async def load_extensions():
     print("giveaway 読み込み完了")
     await bot.load_extension("cogs.afk")
     print("afk 読み込み完了")
+    await bot.load_extension("cogs.rolepanel")
+    print("rolepanel 読み込み完了")
 
 
 # Bot起動
