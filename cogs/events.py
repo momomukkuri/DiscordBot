@@ -1,9 +1,13 @@
 import discord
 from discord.ext import commands
+from discord import app_commands
+from typing import Literal, Optional
 import json
 import os
 import datetime
 import asyncio
+import re
+
 
 
 class Events(commands.Cog):
@@ -13,10 +17,14 @@ class Events(commands.Cog):
         self.bot = bot
 
         self.welcome_file = "welcome.json"
+        self.ngword_file = "ngwords.json"
+        self.automod_file = "automod.json"
         self.ban_count = {}
         self.channel_delete_count = {}
         self.role_delete_count = {}
         self.antiraid = {}
+        self.spam_count = {}
+
     async def send_log(
         self,
         guild,
@@ -39,6 +47,414 @@ class Events(commands.Cog):
 
         if channel:
             await channel.send(embed=embed)
+
+    # =========================
+    # NGワード読み込み
+    # =========================
+    def load_ngwords(self):
+
+        if not os.path.exists(self.ngword_file):
+            return {}
+
+        with open(self.ngword_file, "r", encoding="utf-8") as f:
+            return json.load(f)
+    
+
+    # =========================
+    # NGワード検知
+    # =========================
+    @commands.Cog.listener()
+    async def on_message(self, message):
+
+        if message.author.bot:
+            return
+
+        # スパム検知
+        await self.check_spam(message)
+
+        # メンションスパム検知
+        await self.check_mention_spam(message)
+
+        # 管理者は無視
+        if message.author.guild_permissions.manage_guild:
+            return
+
+        # 招待リンクブロック
+        automod = self.load_automod()
+        guild_id = str(message.guild.id)
+
+        if automod.get(guild_id, {}).get("invite", False):
+
+            if re.search(
+                r"(discord\.gg/|discord\.com/invite/)",
+                message.content,
+                re.IGNORECASE
+            ):
+
+                try:
+                    await message.delete()
+
+                    embed = discord.Embed(
+                        title="🚫 招待リンクを削除しました",
+                        color=discord.Color.red(),
+                        timestamp=datetime.datetime.now()
+                    )
+
+                    embed.add_field(
+                        name="ユーザー",
+                        value=message.author.mention,
+                        inline=False
+                    )
+
+                    embed.add_field(
+                        name="チャンネル",
+                        value=message.channel.mention,
+                        inline=False
+                    )
+
+                    embed.add_field(
+                        name="内容",
+                        value=message.content,
+                        inline=False
+                    )
+
+                    await self.send_log(
+                        message.guild,
+                        embed,
+                        "monitor"
+                    )
+
+                except discord.Forbidden:
+                    pass
+
+                return
+
+        data = self.load_ngwords()
+
+        automod = self.load_automod()
+
+        guild_id = str(message.guild.id)
+
+        # NGワード機能がOFFなら処理しない
+        if not automod.get(guild_id, {}).get("ngword", False):
+            return
+
+        if guild_id not in data:
+            return
+
+        for word in data[guild_id]:
+
+            if word.lower() in message.content.lower():
+
+                try:
+                    await message.delete()
+
+                    embed = discord.Embed(
+                        title="🚫 禁止ワード検知",
+                        color=discord.Color.red(),
+                        timestamp=datetime.datetime.now()
+                    )
+
+                    embed.add_field(
+                        name="ユーザー",
+                        value=message.author.mention,
+                        inline=False
+                    )
+
+                    embed.add_field(
+                        name="禁止ワード",
+                        value=f"`{word}`",
+                        inline=False
+                    )
+
+                    embed.add_field(
+                        name="チャンネル",
+                        value=message.channel.mention,
+                        inline=False
+                    )
+
+                    await self.send_log(
+                        message.guild,
+                        embed,
+                        "monitor"
+                    )
+
+                except discord.Forbidden:
+                    pass
+
+                break
+
+    # =========================
+    # NGワード管理
+    # =========================
+    @app_commands.command(
+        name="ngword",
+        description="禁止ワードを管理します"
+    )
+    @app_commands.checks.has_permissions(manage_guild=True)
+    async def ngword(
+        self,
+        interaction: discord.Interaction,
+        action: Literal["add", "remove", "list"],
+        word: Optional[str] = None
+    ):
+
+        data = self.load_ngwords()
+
+        guild_id = str(interaction.guild.id)
+
+        if guild_id not in data:
+            data[guild_id] = []
+
+        # 追加
+        if action == "add":
+
+            if not word:
+                await interaction.response.send_message(
+                    "追加する単語を入力してください。",
+                    ephemeral=True
+                )
+                return
+
+            if word in data[guild_id]:
+                await interaction.response.send_message(
+                    "その禁止ワードは既に登録されています。",
+                    ephemeral=True
+                )
+                return
+
+            data[guild_id].append(word)
+
+        # 削除
+        elif action == "remove":
+
+            if not word:
+                await interaction.response.send_message(
+                    "削除する単語を入力してください。",
+                    ephemeral=True
+                )
+                return
+
+            if word not in data[guild_id]:
+                await interaction.response.send_message(
+                    "その禁止ワードは登録されていません。",
+                    ephemeral=True
+                )
+                return
+
+            data[guild_id].remove(word)
+
+        # 一覧
+        elif action == "list":
+
+            if not data[guild_id]:
+                await interaction.response.send_message(
+                    "禁止ワードは登録されていません。",
+                    ephemeral=True
+                )
+                return
+
+            embed = discord.Embed(
+                title="🚫 禁止ワード一覧",
+                description="\n".join(f"• {w}" for w in data[guild_id]),
+                color=discord.Color.red()
+            )
+
+            await interaction.response.send_message(
+                embed=embed,
+                ephemeral=True
+            )
+            return
+
+        else:
+            await interaction.response.send_message(
+                "actionは add / remove / list のどれかです。",
+                ephemeral=True
+            )
+            return
+
+        with open(self.ngword_file, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=4)
+
+        await interaction.response.send_message(
+            "更新しました。",
+            ephemeral=True
+        )
+
+    # =========================
+    # AutoMod設定読み込み
+    # =========================
+    def load_automod(self):
+
+        if not os.path.exists(self.automod_file):
+            return {}
+
+        with open(self.automod_file, "r", encoding="utf-8") as f:
+            return json.load(f)
+ 
+    # =========================
+    # スパム検知
+    # =========================
+    async def check_spam(self, message):
+
+        automod = self.load_automod()
+
+        guild_id = str(message.guild.id)
+
+        if not automod.get(guild_id, {}).get("spam", False):
+            return
+
+        now = datetime.datetime.now().timestamp()
+
+        user_id = message.author.id
+
+        if user_id not in self.spam_count:
+            self.spam_count[user_id] = []
+
+        self.spam_count[user_id].append(now)
+
+        # 5秒以内のメッセージだけ残す
+        self.spam_count[user_id] = [
+            t for t in self.spam_count[user_id]
+            if now - t < 5
+        ]
+
+        # 5秒で5回送信したら
+        if len(self.spam_count[user_id]) >= 5:
+
+            try:
+                await message.channel.purge(
+                    limit=20,
+                    check=lambda m: m.author.id == user_id
+                )
+
+                await message.author.timeout(
+                    datetime.timedelta(minutes=10),
+                    reason="スパム送信"
+                )
+
+                embed = discord.Embed(
+                    title="🚨 スパム検知",
+                    color=discord.Color.red(),
+                    timestamp=datetime.datetime.now()
+                )
+
+                embed.add_field(
+                    name="ユーザー",
+                    value=message.author.mention,
+                    inline=False
+                )
+
+                embed.add_field(
+                    name="内容",
+                    value="5秒以内に5回以上送信",
+                    inline=False
+                )
+
+                embed.add_field(
+                    name="処罰",
+                    value="10分タイムアウト",
+                    inline=False
+                )
+
+                await self.send_log(
+                    message.guild,
+                    embed,
+                    "monitor"
+                )
+
+            except discord.Forbidden:
+                pass
+
+            self.spam_count[user_id].clear()
+    # =========================
+    # メンションスパム検知
+    # =========================
+    async def check_mention_spam(self, message):
+
+        automod = self.load_automod()
+
+        guild_id = str(message.guild.id)
+
+        # OFFなら何もしない
+        if not automod.get(guild_id, {}).get("mention", False):
+            return
+
+        # 5人以上メンション
+        if len(message.mentions) < 5:
+            return
+
+        try:
+            await message.delete()
+
+            await message.author.timeout(
+                datetime.timedelta(minutes=10),
+                reason="メンションスパム"
+            )
+
+            embed = discord.Embed(
+                title="🚨 メンションスパム検知",
+                color=discord.Color.red(),
+                timestamp=datetime.datetime.now()
+            )
+
+            embed.add_field(
+                name="ユーザー",
+                value=message.author.mention,
+                inline=False
+            )
+
+            embed.add_field(
+                name="メンション数",
+                value=str(len(message.mentions)),
+                inline=False
+            )
+
+            embed.add_field(
+                name="処罰",
+                value="10分タイムアウト",
+                inline=False
+            )
+
+            await self.send_log(
+                message.guild,
+                embed,
+                "monitor"
+            )
+
+        except discord.Forbidden:
+            pass
+    # =========================
+    # AutoMod設定
+    # =========================
+    @app_commands.command(
+        name="automod",
+        description="AutoModのON/OFFを設定します"
+    )
+    @app_commands.checks.has_permissions(manage_guild=True)
+    async def automod(
+        self,
+        interaction: discord.Interaction,
+        feature: Literal["spam", "invite", "ngword", "mention"],
+        state: Literal["on", "off"]
+    ):
+
+        data = self.load_automod()
+
+        guild_id = str(interaction.guild.id)
+
+        if guild_id not in data:
+            data[guild_id] = {}
+
+        data[guild_id][feature] = (state == "on")
+
+        with open(self.automod_file, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=4)
+
+        await interaction.response.send_message(
+            f"✅ **{feature}** を **{state.upper()}** にしました。",
+            ephemeral=True
+        )
 
 
 
@@ -1247,6 +1663,17 @@ class Events(commands.Cog):
             embed,
             "monitor"
         )
+    
+    async def cog_app_command_error(
+        self,
+        interaction: discord.Interaction,
+        error: app_commands.AppCommandError
+    ):
+        if isinstance(error, app_commands.MissingPermissions):
+            await interaction.response.send_message(
+                "❌ このコマンドを使う権限がありません。",
+                ephemeral=True
+            )
 
 
 # =========================
