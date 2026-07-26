@@ -8,6 +8,7 @@ import asyncio
 class Utility(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
+        self.flood_tasks = {}
 
     @app_commands.command(
         name="ping",
@@ -181,9 +182,41 @@ class Utility(commands.Cog):
 
         channel = interaction.channel
 
+        guild_id = interaction.guild.id
+        self.flood_tasks[guild_id] = True
+
         for i in range(count):
+
+            # 停止されたら終了
+            if not self.flood_tasks.get(guild_id, False):
+                await channel.send("🛑 連投を停止しました。")
+                return
+
             await channel.send(message)
             await asyncio.sleep(delay)
+
+        await channel.send("✅ 連投が完了しました。")
+        self.flood_tasks.pop(guild_id, None)
+    @app_commands.command(name="stopflood", description="連投を停止します")
+    @app_commands.default_permissions(administrator=True)
+    async def stopflood(self, interaction: discord.Interaction):
+
+        guild_id = interaction.guild.id
+
+        if guild_id not in self.flood_tasks:
+            await interaction.response.send_message(
+                "❌ 現在連投は実行されていません。",
+                ephemeral=True
+            )
+            return
+
+        # 停止フラグOFF
+        self.flood_tasks[guild_id] = False
+
+        await interaction.response.send_message(
+            "🛑 連投停止を要求しました。",
+            ephemeral=True
+        )
 
 async def setup(bot):
     await bot.add_cog(Utility(bot))
