@@ -3,6 +3,7 @@ from discord.ext import commands
 from discord import app_commands
 import json
 import os
+import asyncio
 
 class Utility(commands.Cog):
     def __init__(self, bot):
@@ -160,6 +161,29 @@ class Utility(commands.Cog):
             embed=embed,
             ephemeral=True
         )
+
+    @app_commands.command(
+        name="flood",
+        description="指定した内容を連続送信します"
+    )
+    @app_commands.checks.has_permissions(manage_guild=True)
+    async def flood(
+        self,
+        interaction: discord.Interaction,
+        message: str,
+        count: app_commands.Range[int, 1, 100],
+        delay: app_commands.Range[float, 0.5, 10.0]
+    ):
+        await interaction.response.send_message(
+            f"🚀 {count}回送信を開始します。",
+            ephemeral=True
+        )
+
+        channel = interaction.channel
+
+        for i in range(count):
+            await channel.send(message)
+            await asyncio.sleep(delay)
 
 async def setup(bot):
     await bot.add_cog(Utility(bot))
