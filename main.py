@@ -1,107 +1,124 @@
+import os
+import asyncio
 import discord
 from discord.ext import commands
-from discord import app_commands
+from dotenv import load_dotenv
+
+# .envを読み込む
+load_dotenv()
+
+TOKEN = os.getenv("TOKEN")
+
+print("TOKEN:", TOKEN)
+print("長さ:", len(TOKEN) if TOKEN else None)
 
 
-class RoleSelect(discord.ui.Select):
+# Intents
+intents = discord.Intents.default()
+intents.message_content = True
+intents.members = True
+intents.messages = True
+intents.moderation = True
+intents.guilds = True
 
-    def __init__(self, roles):
 
-        options = []
+# Bot作成
+bot = commands.Bot(
+    command_prefix="!",
+    intents=intents
+)
 
-        for role in roles:
-            options.append(
-                discord.SelectOption(
-                    label=role.name,
-                    value=str(role.id)
-                )
-            )
 
-        super().__init__(
-            placeholder="取得するロールを選択",
-            options=options
+# 起動時
+@bot.event
+async def on_ready():
+
+    print(f"{bot.user} が起動しました！")
+
+    try:
+        synced = await bot.tree.sync()
+
+        print(f"{len(synced)}個のコマンドを同期しました")
+
+        for cmd in synced:
+            print(cmd.name)
+
+    except Exception as e:
+        print("同期エラー:", e)
+
+
+
+# スラッシュコマンドエラー
+@bot.tree.error
+async def on_app_command_error(
+    interaction: discord.Interaction,
+    error
+):
+
+    print("===== スラッシュコマンドエラー =====")
+    print(error)
+
+    if interaction.response.is_done():
+
+        await interaction.followup.send(
+            "❌ コマンド実行中にエラーが発生しました",
+            ephemeral=True
         )
 
-
-    async def callback(self, interaction: discord.Interaction):
-
-        role_id = int(self.values[0])
-
-        role = interaction.guild.get_role(role_id)
-
-        if role in interaction.user.roles:
-
-            await interaction.user.remove_roles(role)
-
-            await interaction.response.send_message(
-                f"❌ {role.name} を外しました",
-                ephemeral=True
-            )
-
-        else:
-
-            await interaction.user.add_roles(role)
-
-            await interaction.response.send_message(
-                f"✅ {role.name} を取得しました",
-                ephemeral=True
-            )
-
-
-
-class RoleView(discord.ui.View):
-
-    def __init__(self, roles):
-
-        super().__init__(timeout=None)
-
-        self.add_item(
-            RoleSelect(roles)
-        )
-
-
-
-class RolePanel(commands.Cog):
-
-    def __init__(self, bot):
-        self.bot = bot
-
-
-    @app_commands.command(
-        name="rolepanel",
-        description="ロールパネル作成"
-    )
-    @app_commands.default_permissions(administrator=True)
-    async def rolepanel(
-        self,
-        interaction: discord.Interaction
-    ):
-
-
-        roles = [
-            role for role in interaction.guild.roles
-            if role.name != "@everyone"
-        ][:25]
-
-
-        embed = discord.Embed(
-            title="🎭 ロール選択",
-            description="取得したいロールを選択してください",
-            color=discord.Color.blue()
-        )
-
-
-        await interaction.channel.send(
-            embed=embed,
-            view=RoleView(roles)
-        )
-
+    else:
 
         await interaction.response.send_message(
-            "✅ ロールパネルを作成しました",
+            "❌ コマンド実行中にエラーが発生しました",
             ephemeral=True
         )
 
 
-async def setup(bot):
-    await bot.add_cog(RolePanel(bot))
+
+# Cog読み込み
+async def load_extensions():
+
+    await bot.load_extension("cogs.utility")
+    print("utility 読み込み完了")
+
+    await bot.load_extension("cogs.info")
+    print("info 読み込み完了")
+
+    await bot.load_extension("cogs.moderation")
+    print("moderation 読み込み完了")
+
+    await bot.load_extension("cogs.events")
+    print("events 読み込み完了")
+
+    await bot.load_extension("cogs.logs")
+    print("logs 読み込み完了")
+
+    await bot.load_extension("cogs.verify")
+    print("verify 読み込み完了")
+
+    await bot.load_extension("cogs.ticket")
+    print("ticket 読み込み完了")
+
+    await bot.load_extension("cogs.giveaway")
+    print("giveaway 読み込み完了")
+
+    await bot.load_extension("cogs.afk")
+    print("afk 読み込み完了")
+
+    await bot.load_extension("cogs.rolepanel")
+    print("rolepanel 読み込み完了")
+
+
+
+# Bot起動
+async def main():
+
+    async with bot:
+
+        await load_extensions()
+
+        await bot.start(TOKEN)
+
+
+
+# 実行
+asyncio.run(main())
