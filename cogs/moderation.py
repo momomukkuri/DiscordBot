@@ -416,6 +416,51 @@ class Moderation(commands.Cog):
                 "BAN Error:",
                 e
             )
+    @app_commands.command(
+        name="banlist",
+        description="BANされているユーザー一覧を表示します"
+    )
+    @app_commands.checks.has_permissions(ban_members=True)
+    async def banlist(
+        self,
+        interaction: discord.Interaction
+    ):
+
+        bans = [entry async for entry in interaction.guild.bans()]
+
+        if not bans:
+            await interaction.response.send_message(
+                "✅ BANされているユーザーはいません。",
+                ephemeral=True
+            )
+            return
+
+        embed = discord.Embed(
+            title="🔨 BANリスト",
+            color=discord.Color.red()
+        )
+
+        description = ""
+
+        for i, entry in enumerate(bans, start=1):
+            user = entry.user
+            reason = entry.reason or "理由なし"
+
+            description += (
+                f"**{i}.** {user} (`{user.id}`)\n"
+                f"理由: {reason}\n\n"
+            )
+
+            # Embedの文字数制限対策
+            if len(description) > 3500:
+                break
+
+        embed.description = description
+
+        await interaction.response.send_message(
+            embed=embed,
+            ephemeral=True
+        )
     # =========================
     # Unban
     # =========================
