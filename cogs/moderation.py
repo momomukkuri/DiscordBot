@@ -566,7 +566,7 @@ class Moderation(commands.Cog):
             )
 
             self.add_history(
-                user.id,
+                int(user_id),
                 "Unban",
                 reason,
                 str(interaction.user)
@@ -980,7 +980,6 @@ class Moderation(commands.Cog):
         await self.send_log(
             new_channel.guild,
             embed,
-            "moderation"
         )
 
 
