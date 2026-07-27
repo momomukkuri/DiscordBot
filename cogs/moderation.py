@@ -1443,43 +1443,43 @@ class Moderation(commands.Cog):
                 ephemeral=True
             )
     @app_commands.command(
-        name="deletemessage",
-        description="メッセージIDを指定して削除します"
+        name="指定メッセージ削除",
+        description="入力した内容と一致するメッセージを削除します"
     )
     @app_commands.describe(
-        message_id="削除するメッセージID"
+        content="削除するメッセージの内容"
     )
     @app_commands.checks.has_permissions(manage_messages=True)
-    async def deletemessage(
+    async def delete_message(
         self,
         interaction: discord.Interaction,
-        message_id: str
+        content: str
     ):
 
-        try:
-            message = await interaction.channel.fetch_message(int(message_id))
-            await message.delete()
+        await interaction.response.defer(ephemeral=True)
 
-            await interaction.response.send_message(
+        deleted = False
+
+        async for message in interaction.channel.history(limit=200):
+
+            if message.content == content:
+
+                await message.delete()
+
+                deleted = True
+                break
+
+        if deleted:
+
+            await interaction.followup.send(
                 "✅ メッセージを削除しました。",
                 ephemeral=True
             )
 
-        except discord.NotFound:
-            await interaction.response.send_message(
-                "❌ メッセージが見つかりません。",
-                ephemeral=True
-            )
+        else:
 
-        except discord.Forbidden:
-            await interaction.response.send_message(
-                "❌ メッセージを削除する権限がありません。",
-                ephemeral=True
-            )
-
-        except Exception as e:
-            await interaction.response.send_message(
-                f"❌ エラー: {e}",
+            await interaction.followup.send(
+                "❌ 一致するメッセージが見つかりません。",
                 ephemeral=True
             )
 
