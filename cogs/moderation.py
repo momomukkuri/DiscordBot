@@ -1444,11 +1444,9 @@ class Moderation(commands.Cog):
             )
     @app_commands.command(
         name="指定メッセージ削除",
-        description="入力した内容と一致するメッセージを削除します"
+        description="入力した内容と一致するメッセージをすべて削除します"
     )
-    @app_commands.describe(
-        content="削除するメッセージの内容"
-    )
+    @app_commands.describe(content="削除するメッセージの内容")
     @app_commands.checks.has_permissions(manage_messages=True)
     async def delete_message(
         self,
@@ -1458,28 +1456,22 @@ class Moderation(commands.Cog):
 
         await interaction.response.defer(ephemeral=True)
 
-        deleted = False
+        deleted = 0
 
-        async for message in interaction.channel.history(limit=200):
+        async for message in interaction.channel.history(limit=1000):
 
             if message.content == content:
-
                 await message.delete()
+                deleted += 1
 
-                deleted = True
-                break
-
-        if deleted:
-
+        if deleted == 0:
             await interaction.followup.send(
-                "✅ メッセージを削除しました。",
+                "❌ 一致するメッセージは見つかりませんでした。",
                 ephemeral=True
             )
-
         else:
-
             await interaction.followup.send(
-                "❌ 一致するメッセージが見つかりません。",
+                f"✅ {deleted}件のメッセージを削除しました。",
                 ephemeral=True
             )
 
