@@ -566,7 +566,7 @@ class Moderation(commands.Cog):
             )
 
             self.add_history(
-                member.id,
+                user.id,
                 "Unban",
                 reason,
                 str(interaction.user)
@@ -845,6 +845,68 @@ class Moderation(commands.Cog):
         await interaction.response.send_message(
             embed=embed
         )
+    
+    # =========================
+    # History
+    # =========================
+    @app_commands.command(
+        name="history",
+        description="ユーザーの処分履歴を表示します"
+    )
+    @app_commands.checks.has_permissions(
+        moderate_members=True
+    )
+    async def history(
+        self,
+        interaction: discord.Interaction,
+        member: discord.Member
+    ):
+
+        if not os.path.exists(self.history_file):
+            await interaction.response.send_message(
+                "履歴はありません。",
+                ephemeral=True
+            )
+            return
+
+        with open(
+            self.history_file,
+            "r",
+            encoding="utf-8"
+        ) as f:
+            data = json.load(f)
+
+        history = data.get(str(member.id), [])
+
+        if not history:
+            await interaction.response.send_message(
+                f"{member.mention} の履歴はありません。",
+                ephemeral=True
+            )
+            return
+
+        embed = discord.Embed(
+            title=f"📜 {member} の処分履歴",
+            color=discord.Color.orange()
+        )
+
+        text = ""
+
+        for i, h in enumerate(history, 1):
+            text += (
+                f"**#{i} {h['action']}**\n"
+                f"理由: {h['reason']}\n"
+                f"実行者: {h['moderator']}\n"
+                f"日時: {h['date']}\n\n"
+            )
+
+        embed.description = text[:4000]
+
+        await interaction.response.send_message(
+            embed=embed,
+            ephemeral=True
+        )
+
     # =========================
     # Nuke
     # =========================
