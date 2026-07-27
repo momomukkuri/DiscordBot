@@ -77,6 +77,7 @@ class Moderation(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.warning_file = "warnings.json"
+        self.history_file = "history.json"
 
 
     # =========================
@@ -120,6 +121,29 @@ class Moderation(commands.Cog):
                 embed=embed
             )
 
+    def add_history(self, user_id, action, reason, moderator):
+
+        if os.path.exists(self.history_file):
+            with open(self.history_file, "r", encoding="utf-8") as f:
+                data = json.load(f)
+        else:
+            data = {}
+
+        user_id = str(user_id)
+
+        if user_id not in data:
+            data[user_id] = []
+
+        data[user_id].append({
+            "action": action,
+            "reason": reason,
+            "moderator": moderator,
+            "date": datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+        })
+
+        with open(self.history_file, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=4)
+
 
     # =========================
     # Timeout
@@ -133,9 +157,7 @@ class Moderation(commands.Cog):
         minutes="時間(分)",
         reason="理由"
     )
-    @app_commands.checks.has_permissions(
-        moderate_members=True
-    )
+    @app_commands.checks.has_permissions(moderate_members=True)
     async def timeout(
         self,
         interaction: discord.Interaction,
@@ -147,14 +169,10 @@ class Moderation(commands.Cog):
         await interaction.response.defer()
 
         try:
-
             await member.timeout(
-                datetime.timedelta(
-                    minutes=minutes
-                ),
+                datetime.timedelta(minutes=minutes),
                 reason=reason
             )
-
 
             embed = discord.Embed(
                 title="🔇 Timeout",
@@ -184,25 +202,22 @@ class Moderation(commands.Cog):
                 text=f"実行者: {interaction.user}"
             )
 
-
-            await interaction.followup.send(
-                embed=embed
-            )
-
+            await interaction.followup.send(embed=embed)
 
             await self.send_log(
                 interaction.guild,
                 embed
             )
 
-
-        except Exception as e:
-
-            print(
-                "Timeout Error:",
-                e
+            self.add_history(
+                member.id,
+                "Timeout",
+                reason,
+                str(interaction.user)
             )
 
+        except Exception as e:
+            print("Timeout Error:", e)
 
             await interaction.followup.send(
                 "❌ Timeout失敗",
@@ -211,12 +226,13 @@ class Moderation(commands.Cog):
 
 
 
+
     # =========================
     # Untimeout
     # =========================
     @app_commands.command(
         name="untimeout",
-        description="Timeout解除"
+        description="Timeoutを解除します"
     )
     @app_commands.checks.has_permissions(
         moderate_members=True
@@ -229,19 +245,14 @@ class Moderation(commands.Cog):
 
         await interaction.response.defer()
 
-
         try:
 
-            await member.timeout(
-                None
-            )
-
+            await member.timeout(None)
 
             embed = discord.Embed(
                 title="🔊 Timeout解除",
                 color=discord.Color.green()
             )
-
 
             embed.add_field(
                 name="対象",
@@ -249,28 +260,33 @@ class Moderation(commands.Cog):
                 inline=False
             )
 
-
             embed.set_footer(
                 text=f"実行者: {interaction.user}"
             )
 
-
             await interaction.followup.send(
                 embed=embed
             )
-
 
             await self.send_log(
                 interaction.guild,
                 embed
             )
 
+            self.add_history(
+                member.id,
+                "Untimeout",
+                "理由なし",
+                str(interaction.user)
+            )
 
         except Exception as e:
 
-            print(
-                "Untimeout Error:",
-                e
+            print("Untimeout Error:", e)
+
+            await interaction.followup.send(
+                "❌ Timeout解除に失敗しました。",
+                ephemeral=True
             )
 
 
@@ -335,6 +351,13 @@ class Moderation(commands.Cog):
             await self.send_log(
                 interaction.guild,
                 embed
+            )
+
+            self.add_history(
+                member.id,
+                "Kick",
+                reason,
+                str(interaction.user)
             )
 
 
@@ -407,6 +430,13 @@ class Moderation(commands.Cog):
             await self.send_log(
                 interaction.guild,
                 embed
+            )
+
+            self.add_history(
+                member.id,
+                "BAN",
+                reason,
+                str(interaction.user)
             )
 
 
@@ -535,6 +565,13 @@ class Moderation(commands.Cog):
                 embed
             )
 
+            self.add_history(
+                member.id,
+                "Unban",
+                reason,
+                str(interaction.user)
+            )
+
 
         except Exception as e:
 
@@ -614,6 +651,13 @@ class Moderation(commands.Cog):
             await self.send_log(
                 interaction.guild,
                 embed
+            )
+
+            self.add_history(
+                member.id,
+                "SoftBAN",
+                reason,
+                str(interaction.user)
             )
 
 
@@ -718,6 +762,13 @@ class Moderation(commands.Cog):
         await self.send_log(
             interaction.guild,
             embed
+        )
+
+        self.add_history(
+            member.id,
+            "Warn",
+            reason,
+            str(interaction.user)
         )
 
 
