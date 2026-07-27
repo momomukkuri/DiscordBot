@@ -1442,6 +1442,46 @@ class Moderation(commands.Cog):
                 "actionは add / remove / list / clear を指定してください。",
                 ephemeral=True
             )
+    @app_commands.command(
+        name="deletemessage",
+        description="メッセージIDを指定して削除します"
+    )
+    @app_commands.describe(
+        message_id="削除するメッセージID"
+    )
+    @app_commands.checks.has_permissions(manage_messages=True)
+    async def deletemessage(
+        self,
+        interaction: discord.Interaction,
+        message_id: str
+    ):
+
+        try:
+            message = await interaction.channel.fetch_message(int(message_id))
+            await message.delete()
+
+            await interaction.response.send_message(
+                "✅ メッセージを削除しました。",
+                ephemeral=True
+            )
+
+        except discord.NotFound:
+            await interaction.response.send_message(
+                "❌ メッセージが見つかりません。",
+                ephemeral=True
+            )
+
+        except discord.Forbidden:
+            await interaction.response.send_message(
+                "❌ メッセージを削除する権限がありません。",
+                ephemeral=True
+            )
+
+        except Exception as e:
+            await interaction.response.send_message(
+                f"❌ エラー: {e}",
+                ephemeral=True
+            )
 
 
 
