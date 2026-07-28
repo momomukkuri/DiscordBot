@@ -311,15 +311,23 @@ class Survey(commands.Cog):
     async def survey_close(
         self,
         interaction: discord.Interaction,
-        message_id: str
+        title: str
     ):
 
         data = load_surveys()
 
-        if message_id not in data:
+        message_id = None
+
+        for msg_id, survey in data.items():
+
+            if survey["question"] == title:
+                message_id = msg_id
+                break
+
+        if message_id is None:
 
             await interaction.response.send_message(
-                "アンケートが見つかりません。",
+                "❌ そのタイトルのアンケートは見つかりません。",
                 ephemeral=True
             )
             return
