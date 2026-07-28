@@ -7,6 +7,38 @@ import datetime
 import json
 import os
 
+XEMBED_FILE = "xembed.json"
+
+
+def load_xembed():
+
+    if not os.path.exists(XEMBED_FILE):
+        return {}
+
+    with open(
+        XEMBED_FILE,
+        "r",
+        encoding="utf-8"
+    ) as f:
+
+        return json.load(f)
+
+
+def save_xembed(data):
+
+    with open(
+        XEMBED_FILE,
+        "w",
+        encoding="utf-8"
+    ) as f:
+
+        json.dump(
+            data,
+            f,
+            ensure_ascii=False,
+            indent=4
+        )
+
 class PollEndView(discord.ui.View):
 
     def __init__(self, author_id):
@@ -1632,6 +1664,44 @@ class Moderation(commands.Cog):
                 ephemeral=True
             )
 
+    @app_commands.command(
+        name="xembed",
+        description="X埋め込み機能のON/OFF"
+    )
+    @app_commands.describe(
+        mode="on または off"
+    )
+    @app_commands.checks.has_permissions(
+        manage_guild=True
+    )
+    async def xembed(
+        self,
+        interaction: discord.Interaction,
+        mode: str
+    ):
+
+        mode = mode.lower()
+
+        if mode not in ["on", "off"]:
+
+            await interaction.response.send_message(
+                "使い方: `/xembed on` または `/xembed off`",
+                ephemeral=True
+            )
+            return
+
+        data = load_xembed()
+
+        data[str(interaction.guild.id)] = (
+            mode == "on"
+        )
+
+        save_xembed(data)
+
+        await interaction.response.send_message(
+            f"✅ X埋め込みを **{mode.upper()}** にしました。",
+            ephemeral=True
+        )
 
 
 # =========================

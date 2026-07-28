@@ -1674,6 +1674,59 @@ class Events(commands.Cog):
                 "❌ このコマンドを使う権限がありません。",
                 ephemeral=True
             )
+    
+    @commands.Cog.listener()
+    async def on_message(
+        self,
+        message
+    ):
+
+        if message.author.bot:
+            return
+
+        if not message.guild:
+            return
+
+        data = {}
+
+        if os.path.exists("xembed.json"):
+
+            with open(
+                "xembed.json",
+                "r",
+                encoding="utf-8"
+            ) as f:
+
+                data = json.load(f)
+
+        if not data.get(
+            str(message.guild.id),
+            False
+        ):
+            return
+
+        match = re.search(
+            r"https?://(?:x|twitter)\.com/\S+",
+            message.content
+        )
+
+        if not match:
+            return
+
+        url = match.group()
+        fx_url = (
+            url
+            .replace(
+                "https://x.com/",
+                "https://fxtwitter.com/"
+            )
+            .replace(
+                "https://twitter.com/",
+                "https://fxtwitter.com/"
+            )
+        )
+
+        await message.channel.send(fx_url)
 
 
 # =========================
