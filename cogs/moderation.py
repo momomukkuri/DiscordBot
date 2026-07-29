@@ -946,6 +946,7 @@ class Moderation(commands.Cog):
         name="nuke",
         description="チャンネル内のメッセージを全削除します"
     )
+    @app_commands.checks.has_permissions(administrator=True)
     @app_commands.default_permissions(
         administrator=True
     )
@@ -1065,6 +1066,7 @@ class Moderation(commands.Cog):
         name="lockdown",
         description="チャンネルをロックします"
     )
+    @app_commands.checks.has_permissions(administrator=True)
     @app_commands.checks.has_permissions(
         manage_channels=True
     )
@@ -1112,6 +1114,7 @@ class Moderation(commands.Cog):
         name="unlock",
         description="ロック解除"
     )
+    @app_commands.checks.has_permissions(administrator=True)
     @app_commands.checks.has_permissions(
         manage_channels=True
     )
@@ -1206,6 +1209,7 @@ class Moderation(commands.Cog):
         name="serverunlock",
         description="サーバーロック解除"
     )
+    @app_commands.checks.has_permissions(administrator=True)
     @app_commands.checks.has_permissions(
         administrator=True
     )

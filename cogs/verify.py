@@ -317,6 +317,7 @@ class Verify(commands.Cog):
         name="setrules",
         description="認証パネルのルールを設定します"
     )
+    @app_commands.checks.has_permissions(administrator=True)
     @app_commands.default_permissions(administrator=True)
     async def setrules(
         self,
