@@ -7,6 +7,7 @@ import os
 import datetime
 import asyncio
 import re
+import yt_dlp
 
 
 
@@ -24,6 +25,12 @@ class Events(commands.Cog):
         self.role_delete_count = {}
         self.antiraid = {}
         self.spam_count = {}
+        self.download_folder = "downloads"
+
+        os.makedirs(
+            self.download_folder,
+            exist_ok=True
+        )
 
     async def send_log(
         self,
@@ -47,6 +54,7 @@ class Events(commands.Cog):
 
         if channel:
             await channel.send(embed=embed)
+        
 
     # =========================
     # NGワード読み込み
@@ -68,6 +76,88 @@ class Events(commands.Cog):
 
         if message.author.bot:
             return
+        
+        # =========================
+        # X動画自動保存
+        # =========================
+
+        match = re.search(
+            r"https?://(?:x\.com|twitter\.com)/[^\s]+/status/\d+",
+            message.content
+        )
+
+        if match:
+
+            url = match.group()
+
+            downloading = await message.reply("📥 動画をダウンロード中...")
+
+            filename = None
+
+            try:
+
+                ydl_opts = {
+                    "outtmpl": os.path.join(
+                        self.download_folder,
+                        "%(id)s.%(ext)s"
+                    ),
+                    "format": "bestvideo+bestaudio/best",
+                    "merge_output_format": "mp4",
+                    "quiet": True,
+                    "noplaylist": True,
+                }
+
+                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+
+                    info = ydl.extract_info(
+                        url,
+                        download=True
+                    )
+
+                    filename = ydl.prepare_filename(info)
+
+                await downloading.delete()
+
+                await message.reply(
+                    file=discord.File(filename)
+                )
+
+                # 元のXリンクのメッセージを削除
+                await message.delete()
+
+            except Exception as e:
+
+                await downloading.edit(
+                    content=f"❌ ダウンロード失敗\n```{e}```"
+                )
+
+                print(e)
+                return
+
+            finally:
+
+                if filename and os.path.exists(filename):
+                    os.remove(filename)
+            
+            data = {}
+
+            if os.path.exists("xembed.json"):
+                with open("xembed.json", "r", encoding="utf-8") as f:
+                    data = json.load(f)
+
+            if data.get(str(message.guild.id), False):
+
+                fx_url = (
+                    url.replace(
+                        "https://x.com/",
+                        "https://fxtwitter.com/"
+                    ).replace(
+                        "https://twitter.com/",
+                        "https://fxtwitter.com/"
+                    )
+                )
+
+                await message.channel.send(fx_url)
 
         # スパム検知
         await self.check_spam(message)
@@ -1675,58 +1765,7 @@ class Events(commands.Cog):
                 ephemeral=True
             )
     
-    @commands.Cog.listener()
-    async def on_message(
-        self,
-        message
-    ):
-
-        if message.author.bot:
-            return
-
-        if not message.guild:
-            return
-
-        data = {}
-
-        if os.path.exists("xembed.json"):
-
-            with open(
-                "xembed.json",
-                "r",
-                encoding="utf-8"
-            ) as f:
-
-                data = json.load(f)
-
-        if not data.get(
-            str(message.guild.id),
-            False
-        ):
-            return
-
-        match = re.search(
-            r"https?://(?:x|twitter)\.com/\S+",
-            message.content
-        )
-
-        if not match:
-            return
-
-        url = match.group()
-        fx_url = (
-            url
-            .replace(
-                "https://x.com/",
-                "https://fxtwitter.com/"
-            )
-            .replace(
-                "https://twitter.com/",
-                "https://fxtwitter.com/"
-            )
-        )
-
-        await message.channel.send(fx_url)
+    
 
 
 # =========================
