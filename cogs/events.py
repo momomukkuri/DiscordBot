@@ -82,13 +82,6 @@ class Events(commands.Cog):
         # X動画自動保存
         # =========================
 
-        save_data = self.load_xsave()
-
-        # OFFなら機能を無効化
-        if not save_data.get(str(message.guild.id), False):
-            await self.bot.process_commands(message)
-            return
-
         match = re.search(
             r"https?://(?:x\.com|twitter\.com)/[^\s]+/status/\d+",
             message.content
@@ -98,60 +91,76 @@ class Events(commands.Cog):
 
             url = match.group()
 
-            downloading = await message.reply("📥 動画をダウンロード中...")
+            guild_id = str(message.guild.id)
 
-            filename = None
+            # X動画保存設定
+            save_enabled = self.load_xsave().get(guild_id, False)
 
-            try:
-
-                ydl_opts = {
-                    "outtmpl": os.path.join(
-                        self.download_folder,
-                        "%(id)s.%(ext)s"
-                    ),
-                    "format": "best[ext=mp4]/best",
-                    "quiet": True,
-                    "noplaylist": True,
-                }
-
-                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-
-                    info = ydl.extract_info(
-                        url,
-                        download=True
-                    )
-
-                    filename = ydl.prepare_filename(info)
-
-                await downloading.delete()
-
-                await message.reply(
-                    file=discord.File(filename)
-                )
-
-                # 元のXリンクのメッセージを削除
-                await message.delete()
-
-            except Exception as e:
-
-                await downloading.edit(
-                    content=f"❌ ダウンロード失敗\n```{e}```"
-                )
-
-                print(e)
-                return
-
-            finally:
-                if filename and os.path.exists(filename):
-                    os.remove(filename)
-            
-            data = {}
+            # X埋め込み設定
+            embed_enabled = False
 
             if os.path.exists("xembed.json"):
                 with open("xembed.json", "r", encoding="utf-8") as f:
-                    data = json.load(f)
+                    embed_data = json.load(f)
 
-            if data.get(str(message.guild.id), False):
+                embed_enabled = embed_data.get(guild_id, False)
+
+            # =========================
+            # 動画保存
+            # =========================
+            if save_enabled:
+
+                downloading = await message.reply("📥 動画をダウンロード中...")
+
+                filename = None
+
+                try:
+
+                    ydl_opts = {
+                        "outtmpl": os.path.join(
+                            self.download_folder,
+                            "%(id)s.%(ext)s"
+                        ),
+                        "format": "best[ext=mp4]/best",
+                        "quiet": True,
+                        "noplaylist": True,
+                    }
+
+                    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+
+                        info = ydl.extract_info(
+                            url,
+                            download=True
+                        )
+
+                        filename = ydl.prepare_filename(info)
+
+                    await downloading.delete()
+
+                    await message.reply(
+                        file=discord.File(filename)
+                    )
+
+                    await message.delete()
+
+                except Exception as e:
+
+                    if downloading:
+                        await downloading.edit(
+                            content=f"❌ ダウンロード失敗\n```{e}```"
+                        )
+
+                    print(e)
+
+                finally:
+
+                    if filename and os.path.exists(filename):
+                        os.remove(filename)
+
+            # =========================
+            # X埋め込み
+            # =========================
+            if embed_enabled:
 
                 fx_url = (
                     url.replace(
