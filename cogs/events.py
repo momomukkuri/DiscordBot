@@ -101,8 +101,7 @@ class Events(commands.Cog):
                         self.download_folder,
                         "%(id)s.%(ext)s"
                     ),
-                    "format": "bestvideo+bestaudio/best",
-                    "merge_output_format": "mp4",
+                    "format": "best[ext=mp4]/best",
                     "quiet": True,
                     "noplaylist": True,
                 }
