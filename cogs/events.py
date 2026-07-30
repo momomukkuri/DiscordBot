@@ -82,6 +82,13 @@ class Events(commands.Cog):
         # X動画自動保存
         # =========================
 
+        save_data = self.load_xsave()
+
+        # OFFなら機能を無効化
+        if not save_data.get(str(message.guild.id), False):
+            await self.bot.process_commands(message)
+            return
+
         match = re.search(
             r"https?://(?:x\.com|twitter\.com)/[^\s]+/status/\d+",
             message.content
@@ -135,14 +142,8 @@ class Events(commands.Cog):
                 return
 
             finally:
-
-                save_data = self.load_xsave()
-
-                save = save_data.get(str(message.guild.id), False)
-
-                if not save:
-                    if filename and os.path.exists(filename):
-                        os.remove(filename)
+                if filename and os.path.exists(filename):
+                    os.remove(filename)
             
             data = {}
 
