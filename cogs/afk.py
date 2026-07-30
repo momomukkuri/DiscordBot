@@ -40,7 +40,8 @@ class AFK(commands.Cog):
 
             await message.channel.send(
                 f"👋 {message.author.mention}\n"
-                "AFKを解除しました。おかえりなさい！"
+                "AFKを解除しました。おかえりなさい！\n"
+                f"💬 AFK理由: **{data['reason']}**"
             )
 
 
