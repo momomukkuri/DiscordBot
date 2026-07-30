@@ -26,6 +26,7 @@ class Events(commands.Cog):
         self.antiraid = {}
         self.spam_count = {}
         self.download_folder = "downloads"
+        self.xsave_file = "xsave.json"
 
         os.makedirs(
             self.download_folder,
@@ -135,8 +136,13 @@ class Events(commands.Cog):
 
             finally:
 
-                if filename and os.path.exists(filename):
-                    os.remove(filename)
+                save_data = self.load_xsave()
+
+                save = save_data.get(str(message.guild.id), False)
+
+                if not save:
+                    if filename and os.path.exists(filename):
+                        os.remove(filename)
             
             data = {}
 
@@ -157,6 +163,8 @@ class Events(commands.Cog):
                 )
 
                 await message.channel.send(fx_url)
+
+
 
         # スパム検知
         await self.check_spam(message)
@@ -380,7 +388,45 @@ class Events(commands.Cog):
 
         with open(self.automod_file, "r", encoding="utf-8") as f:
             return json.load(f)
- 
+    # =========================
+    # X動画保存設定読み込み
+    # =========================
+    def load_xsave(self):
+
+        if not os.path.exists(self.xsave_file):
+            return {}
+
+        with open(self.xsave_file, "r", encoding="utf-8") as f:
+            return json.load(f)
+    
+    # =========================
+    # X動画保存設定
+    # =========================
+    @app_commands.command(
+        name="xsave",
+        description="X動画の保存設定"
+    )
+    @app_commands.checks.has_permissions(manage_guild=True)
+    async def xsave(
+        self,
+        interaction: discord.Interaction,
+        state: Literal["on", "off"]
+    ):
+
+        data = self.load_xsave()
+
+        guild_id = str(interaction.guild.id)
+
+        data[guild_id] = (state == "on")
+
+        with open(self.xsave_file, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=4)
+
+        await interaction.response.send_message(
+            f"✅ X動画保存を **{state.upper()}** にしました。",
+            ephemeral=True
+        )
+    
     # =========================
     # スパム検知
     # =========================
