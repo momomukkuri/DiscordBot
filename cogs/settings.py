@@ -45,6 +45,31 @@ def status(value):
 def settings_embed(guild_id):
 
     automod = load_json("automod.json")
+    print("① OK")
+
+    xsave = load_json("xsave.json")
+    print("② OK")
+
+    xembed = load_json("xembed.json")
+    print("③ OK")
+
+    auto = automod.get(str(guild_id), {})
+    print("④ OK")
+
+    welcome = load_json("welcome.json")
+    print("⑤ OK")
+
+    verify = load_json("verify.json")
+    print("⑥ OK")
+
+    embed = discord.Embed(
+        title="⚙️ サーバー設定",
+        color=discord.Color.green()
+    )
+
+    print("⑦ OK")
+
+    automod = load_json("automod.json")
     xsave = load_json("xsave.json")
     xembed = load_json("xembed.json")
 
