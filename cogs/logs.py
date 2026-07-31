@@ -21,42 +21,32 @@ class Logs(commands.Cog):
         log_type="moderation"
     ):
 
+        # ON/OFF確認
+        if os.path.exists("logtoggle.json"):
+            with open("logtoggle.json", "r", encoding="utf-8") as f:
+                toggle = json.load(f)
+
+            if not toggle.get(str(guild.id), {}).get(log_type, False):
+                return
+
+        # ログチャンネル確認
         if not os.path.exists("logs.json"):
             return
 
-
-        with open(
-            "logs.json",
-            "r",
-            encoding="utf-8"
-        ) as f:
+        with open("logs.json", "r", encoding="utf-8") as f:
             data = json.load(f)
 
-
-        guild_data = data.get(
-            str(guild.id),
-            {}
-        )
-
-
-        channel_id = guild_data.get(
-            log_type
-        )
-
+        guild_data = data.get(str(guild.id), {})
+        channel_id = guild_data.get(log_type)
 
         if channel_id is None:
             return
 
-
-        channel = guild.get_channel(
-            channel_id
-        )
-
+        channel = guild.get_channel(channel_id)
 
         if channel:
-            await channel.send(
-                embed=embed
-            )
+            await channel.send(embed=embed)
+
     # =========================
     # 管理ログ設定
     # =========================
@@ -312,6 +302,52 @@ class Logs(commands.Cog):
             before.guild,
             embed,
             "message"
+        )
+    # =========================
+    # 入室ログ
+    # =========================
+    @commands.Cog.listener()
+    async def on_member_join(self, member):
+
+        embed = discord.Embed(
+            title="📥 メンバー参加",
+            color=discord.Color.green()
+        )
+
+        embed.add_field(
+            name="ユーザー",
+            value=f"{member.mention}\n`{member.id}`",
+            inline=False
+        )
+
+        await self.send_log(
+            member.guild,
+            embed,
+            "joinleave"
+        )
+
+
+    # =========================
+    # 退出ログ
+    # =========================
+    @commands.Cog.listener()
+    async def on_member_remove(self, member):
+
+        embed = discord.Embed(
+            title="📤 メンバー退出",
+            color=discord.Color.red()
+        )
+
+        embed.add_field(
+            name="ユーザー",
+            value=f"{member}\n`{member.id}`",
+            inline=False
+        )
+
+        await self.send_log(
+            member.guild,
+            embed,
+            "joinleave"
         )
 
 
