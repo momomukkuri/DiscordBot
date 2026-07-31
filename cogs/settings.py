@@ -4,6 +4,11 @@ from discord import app_commands
 import json
 import os
 
+print("automod =", load_json("automod.json"))
+print("xsave =", load_json("xsave.json"))
+print("xembed =", load_json("xembed.json"))
+print("welcome =", load_json("welcome.json"))
+print("verify =", load_json("verify.json"))
 
 # ------------------------
 # JSON
@@ -82,7 +87,7 @@ def settings_embed(guild_id):
         name="👋 Welcome",
         value=(
             f"Welcome：{status(welcome.get(str(guild_id), {}).get("enabled", False))}\n"
-            f"認証：{status(verify.get(str(guild_id), False))}",
+            f"認証：{status(verify.get(str(guild_id), {}).get('enabled', False))}",
         ),
         inline=False
     )

@@ -105,7 +105,7 @@ class Events(commands.Cog):
             guild_id = str(message.guild.id)
 
             # X動画保存設定
-            save_enabled = self.load_xsave().get(guild_id, False)
+            save_enabled = self.load_xsave().get(guild_id, {}).get("enabled", False)
 
             # X埋め込み設定
             embed_enabled = False
@@ -114,7 +114,7 @@ class Events(commands.Cog):
                 with open("xembed.json", "r", encoding="utf-8") as f:
                     embed_data = json.load(f)
 
-                embed_enabled = embed_data.get(guild_id, False)
+                embed_enabled = embed_data.get(guild_id, {}).get("enabled", False)
 
             # =========================
             # 動画保存
@@ -438,7 +438,23 @@ class Events(commands.Cog):
 
         guild_id = str(interaction.guild.id)
 
-        data[guild_id] = (state == "on")
+        if guild_id not in data:
+            data[guild_id] = {}
+
+        data = self.load_xsave()
+
+        guild_id = str(interaction.guild.id)
+
+        if guild_id not in data:
+            data[guild_id] = {}
+
+        data[guild_id]["enabled"] = (state == "on")
+
+        with open(self.xsave_file, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=4)
+
+        with open(self.xsave_file, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=4)
 
         with open(self.xsave_file, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=4)
