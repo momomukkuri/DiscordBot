@@ -39,6 +39,8 @@ class Events(commands.Cog):
             embed,
             log_type="joinleave"
         ):
+            print("send_log が呼ばれた")
+            print("log_type =", log_type)
             # ON/OFF確認
             if os.path.exists("logtoggle.json"):
                 with open("logtoggle.json", "r", encoding="utf-8") as f:
