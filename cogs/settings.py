@@ -370,7 +370,7 @@ def welcome_embed(guild_id):
 
 def log_embed(guild_id):
 
-    logs = load_json("logs.json")
+    logs = load_json("logtoggle.json")
 
     data = logs.get(str(guild_id), {})
 
@@ -464,7 +464,7 @@ class LogToggleView(discord.ui.View):
         button: discord.ui.Button
     ):
 
-        data = load_json("logs.json")
+        data = load_json("logtoggle.json")
 
         guild = str(interaction.guild.id)
 
