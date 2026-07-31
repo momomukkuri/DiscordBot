@@ -99,7 +99,7 @@ class Events(commands.Cog):
         )
 
         if match:
-
+            print("Xリンク検知")
             url = match.group()
 
             guild_id = str(message.guild.id)
