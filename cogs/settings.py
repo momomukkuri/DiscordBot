@@ -384,7 +384,7 @@ def log_embed(guild_id):
         value=(
             f"メッセージ：{status(data.get('message', False))}\n"
             f"参加退出：{status(data.get('joinleave', False))}\n"
-            f"モデレーション：{status(data.get('moderation', False))}"
+            f"監視ログ：{status(data.get('monitor', False))}"
         ),
         inline=False
     )
@@ -409,7 +409,7 @@ class LogSelect(discord.ui.Select):
             options=[
                 discord.SelectOption(label="message"),
                 discord.SelectOption(label="joinleave"),
-                discord.SelectOption(label="moderation")
+                discord.SelectOption(label="monitor")
             ]
         )
 
