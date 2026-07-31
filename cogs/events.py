@@ -33,60 +33,37 @@ class Events(commands.Cog):
             exist_ok=True
         )
 
-    async def send_log(
-        self,
-        guild,
-        embed,
-        log_type="joinleave"
-    ):
-        print(f"[LOG] guild={guild.id} type={log_type}")
+        async def send_log(
+            self,
+            guild,
+            embed,
+            log_type="joinleave"
+        ):
+            # ON/OFF確認
+            if os.path.exists("logtoggle.json"):
+                with open("logtoggle.json", "r", encoding="utf-8") as f:
+                    toggle = json.load(f)
 
-        if not os.path.exists("logs.json"):
-            print("logs.jsonがありません")
-            return
+                if not toggle.get(str(guild.id), {}).get(log_type, False):
+                    return
 
-        try:
+            # ログチャンネル取得
+            if not os.path.exists("logs.json"):
+                return
+
             with open("logs.json", "r", encoding="utf-8") as f:
                 data = json.load(f)
 
-            print(data)
-
             guild_data = data.get(str(guild.id), {})
-            print("guild_data =", guild_data)
-
             channel_id = guild_data.get(log_type)
-            print("channel_id =", channel_id)
 
             if not channel_id:
-                print("チャンネル未設定")
                 return
 
             channel = guild.get_channel(channel_id)
-            print("channel =", channel)
 
             if channel:
                 await channel.send(embed=embed)
-                print("送信成功")
-
-        except Exception as e:
-            print("Log Error:", e)
-
-        if not os.path.exists("logs.json"):
-            return
-
-        with open("logs.json", "r", encoding="utf-8") as f:
-            data = json.load(f)
-
-        guild_data = data.get(str(guild.id), {})
-        channel_id = guild_data.get(log_type)
-
-        if not channel_id:
-            return
-
-        channel = guild.get_channel(channel_id)
-
-        if channel:
-            await channel.send(embed=embed)
         
 
     # =========================
