@@ -438,7 +438,7 @@ class LogToggleView(discord.ui.View):
         button: discord.ui.Button
     ):
 
-        data = load_json("logs.json")
+        data = load_json("logtoggle.json")
 
         guild = str(interaction.guild.id)
 
@@ -447,7 +447,7 @@ class LogToggleView(discord.ui.View):
 
         data[guild][self.feature] = True
 
-        save_json("logs.json", data)
+        save_json("logtoggle.json", data)
 
         await interaction.response.edit_message(
             embed=log_embed(interaction.guild.id),
@@ -473,7 +473,7 @@ class LogToggleView(discord.ui.View):
 
         data[guild][self.feature] = False
 
-        save_json("logs.json", data)
+        save_json("logtoggle.json", data)
 
         await interaction.response.edit_message(
             embed=log_embed(interaction.guild.id),
