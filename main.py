@@ -3,16 +3,8 @@ import asyncio
 import discord
 from discord.ext import commands
 from dotenv import load_dotenv
-import traceback
 
-@bot.tree.error
-async def on_app_command_error(interaction, error):
-    print("===== スラッシュコマンドエラー =====")
-    traceback.print_exception(
-        type(error),
-        error,
-        error.__traceback__
-    )
+
 
 # .envを読み込む
 load_dotenv()
@@ -38,6 +30,16 @@ bot = commands.Bot(
     intents=intents
 )
 
+import traceback
+
+@bot.tree.error
+async def on_app_command_error(interaction, error):
+    print("===== スラッシュコマンドエラー =====")
+    traceback.print_exception(
+        type(error),
+        error,
+        error.__traceback__
+    )
 
 # 起動時
 @bot.event
