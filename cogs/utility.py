@@ -5,6 +5,8 @@ import json
 import os
 import asyncio
 
+
+
 class Utility(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
@@ -216,6 +218,37 @@ class Utility(commands.Cog):
         await interaction.response.send_message(
             "🛑 連投停止を要求しました。",
             ephemeral=True
+        )
+
+    
+    @app_commands.command(
+        name="bump",
+        description="Bump通知を送信します"
+    )
+    @app_commands.checks.has_permissions(manage_guild=True)
+    async def bump(
+        self,
+        interaction: discord.Interaction
+    ):
+
+        embed = discord.Embed(
+            title="🚀 Bumpをお願いします！",
+            description=(
+                "サーバーを宣伝するために\n"
+                "</bump:947088344167366698> をお願いします！"
+            ),
+            color=discord.Color.blurple()
+        )
+
+        embed.set_footer(
+            text="Bump後は2時間後に再通知されます"
+        )
+
+        view = BumpView()
+
+        await interaction.response.send_message(
+            content="設定しました",
+            embed=embed
         )
 
 async def setup(bot):
