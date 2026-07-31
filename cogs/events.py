@@ -33,39 +33,39 @@ class Events(commands.Cog):
             exist_ok=True
         )
 
-        async def send_log(
-            self,
-            guild,
-            embed,
-            log_type="joinleave"
-        ):
-            print("send_log が呼ばれた")
-            print("log_type =", log_type)
-            # ON/OFF確認
-            if os.path.exists("logtoggle.json"):
-                with open("logtoggle.json", "r", encoding="utf-8") as f:
-                    toggle = json.load(f)
+    async def send_log(
+        self,
+        guild,
+        embed,
+        log_type="joinleave"
+    ):
+        print("send_log が呼ばれた")
+        print("log_type =", log_type)
+        # ON/OFF確認
+        if os.path.exists("logtoggle.json"):
+            with open("logtoggle.json", "r", encoding="utf-8") as f:
+                toggle = json.load(f)
 
-                if not toggle.get(str(guild.id), {}).get(log_type, False):
-                    return
-
-            # ログチャンネル取得
-            if not os.path.exists("logs.json"):
+            if not toggle.get(str(guild.id), {}).get(log_type, False):
                 return
 
-            with open("logs.json", "r", encoding="utf-8") as f:
-                data = json.load(f)
+        # ログチャンネル取得
+        if not os.path.exists("logs.json"):
+            return
 
-            guild_data = data.get(str(guild.id), {})
-            channel_id = guild_data.get(log_type)
+        with open("logs.json", "r", encoding="utf-8") as f:
+            data = json.load(f)
 
-            if not channel_id:
-                return
+        guild_data = data.get(str(guild.id), {})
+        channel_id = guild_data.get(log_type)
 
-            channel = guild.get_channel(channel_id)
+        if not channel_id:
+            return
 
-            if channel:
-                await channel.send(embed=embed)
+        channel = guild.get_channel(channel_id)
+
+        if channel:
+            await channel.send(embed=embed)
         
 
     # =========================
