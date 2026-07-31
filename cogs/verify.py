@@ -41,6 +41,7 @@ def get_guild_data(guild_id: int):
 
     if gid not in data:
         data[gid] = {
+            "enabled": True,
             "role": None,
             "unverified": None,
 
@@ -128,6 +129,13 @@ class VerifyView(discord.ui.View):
         if guild is None:
             await interaction.response.send_message(
                 "❌ 認証設定がありません。",
+                ephemeral=True
+            )
+            return
+        
+        if not guild.get("enabled", True):
+            await interaction.response.send_message(
+                "❌ 認証機能は現在OFFです。",
                 ephemeral=True
             )
             return
@@ -326,6 +334,35 @@ class Verify(commands.Cog):
         await interaction.response.send_modal(
             RuleModal(interaction.guild.id)
         )
+    @app_commands.command(
+        name="verifytoggle",
+        description="認証機能をON/OFFします"
+    )
+    @app_commands.checks.has_permissions(administrator=True)
+    @app_commands.choices(
+        state=[
+            app_commands.Choice(name="ON", value="on"),
+            app_commands.Choice(name="OFF", value="off"),
+        ]
+    )
+    async def verifytoggle(
+        self,
+        interaction: discord.Interaction,
+        state: Choice[str]
+    ):
+        data = get_guild_data(interaction.guild.id)
+
+        gid = str(interaction.guild.id)
+
+        data[gid]["enabled"] = (state.value == "on")
+
+        save_verify(data)
+
+        await interaction.response.send_message(
+            f"✅ 認証を **{state.value.upper()}** にしました。",
+            ephemeral=True
+        )
+
     
     
 
