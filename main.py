@@ -60,16 +60,6 @@ async def on_ready():
 
 
 
-# スラッシュコマンドエラー
-@bot.tree.error
-async def on_app_command_error(
-    interaction: discord.Interaction,
-    error
-):
-
-    print("===== スラッシュコマンドエラー =====")
-    print(error)
-
     if interaction.response.is_done():
 
         await interaction.followup.send(

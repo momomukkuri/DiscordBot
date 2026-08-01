@@ -194,20 +194,18 @@ class RuleView(discord.ui.View):
 
         if unverified_role:
             await member.remove_roles(unverified_role)
-
         try:
+            print("① ロール付与開始")
             await member.add_roles(verified_role)
+            print("② ロール付与成功")
         except discord.Forbidden:
+            print("ロール付与失敗")
             await interaction.response.send_message(
                 "❌ Botにロール管理権限がありません。",
                 ephemeral=True
             )
             return
 
-        await interaction.response.send_message(
-            "✅ 認証が完了しました！",
-            ephemeral=True
-        )
     
 
 

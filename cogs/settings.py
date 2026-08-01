@@ -92,11 +92,16 @@ def settings_embed(guild_id):
         inline=False
     )
 
+    guild_data = xembed.get(str(guild_id), {})
+
+    if not isinstance(guild_data, dict):
+        guild_data = {}
+
     embed.add_field(
         name="🎥 X機能",
         value=(
-            f"動画変換：{status(xsave.get(str(guild_id), {}).get('enabled', False))}"
-            f"リンク展開：{status(xembed.get(str(guild_id), {}).get('enabled', False))}"
+            f"動画変換：{status(xsave.get(str(guild_id), {}).get('enabled', False))}\n"
+            f"リンク展開：{status(guild_data.get('enabled', False))}"
         ),
         inline=False
     )
@@ -106,8 +111,23 @@ def settings_embed(guild_id):
     embed.add_field(
         name="👋 Welcome",
         value=(
-            f"Welcome：{status(welcome.get(str(guild_id), {}).get("enabled", False))}\n"
-            f"認証：{status(verify.get(str(guild_id), {}).get('enabled', False))}",
+            f"Welcome：{status(welcome.get(str(guild_id), {}).get('enabled', False))}\n"
+            f"認証：{status(verify.get(str(guild_id), {}).get('enabled', False))}"
+        ),
+        inline=False
+    )
+
+    logs = load_json("logtoggle.json")
+
+    log = logs.get(str(guild_id), {})
+
+    embed.add_field(
+        name="📋 ログ",
+        value=(
+            f"メッセージ：{status(log.get('message', False))}\n"
+            f"参加退出：{status(log.get('joinleave', False))}\n"
+            f"監視：{status(log.get('monitor', False))}\n"
+            f"管理：{status(log.get('moderation', False))}"
         ),
         inline=False
     )
@@ -350,6 +370,9 @@ def x_embed(guild_id):
     xsave = load_json("xsave.json")
     xembed = load_json("xembed.json")
 
+    print(xembed)
+    print(type(xembed.get(str(guild_id))))
+
     embed = discord.Embed(
         title="🎥 X機能",
         color=discord.Color.blurple()
@@ -409,7 +432,8 @@ def log_embed(guild_id):
         value=(
             f"メッセージ：{status(data.get('message', False))}\n"
             f"参加退出：{status(data.get('joinleave', False))}\n"
-            f"監視ログ：{status(data.get('monitor', False))}"
+            f"監視ログ：{status(data.get('monitor', False))}\n"
+            f"管理ログ：{status(data.get('moderation', False))}"
         ),
         inline=False
     )
@@ -434,7 +458,8 @@ class LogSelect(discord.ui.Select):
             options=[
                 discord.SelectOption(label="message"),
                 discord.SelectOption(label="joinleave"),
-                discord.SelectOption(label="monitor")
+                discord.SelectOption(label="monitor"),
+                discord.SelectOption(label="moderation")
             ]
         )
 

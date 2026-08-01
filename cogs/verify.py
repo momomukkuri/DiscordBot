@@ -206,6 +206,37 @@ class VerifyView(discord.ui.View):
             embed=embed,
             ephemeral=True
         )
+
+        # DM送信
+        try:
+            dm = discord.Embed(
+                title="✅ 認証完了",
+                description=(
+                    f"**{interaction.guild.name}** の認証が完了しました！\n\n"
+                    "サーバーをお楽しみください。"
+                ),
+                color=discord.Color.green()
+            )
+
+            if interaction.guild.icon:
+                dm.set_thumbnail(url=interaction.guild.icon.url)
+
+            await interaction.user.send(embed=dm)
+
+        except discord.Forbidden:
+            pass
+
+        # サーバー内のメッセージ
+        embed = discord.Embed(
+            title="✅ 認証完了",
+            description=f"{role.mention} を付与しました！",
+            color=discord.Color.green()
+        )
+
+        await interaction.response.send_message(
+            embed=embed,
+            ephemeral=True
+        )
 class Verify(commands.Cog):
 
     def __init__(self, bot):

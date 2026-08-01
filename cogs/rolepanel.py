@@ -35,6 +35,7 @@ class RoleButton(discord.ui.Button):
                 f"✅ {self.role.name} を取得しました。",
                 ephemeral=True
             )
+    
 
 
 class RoleView(discord.ui.View):

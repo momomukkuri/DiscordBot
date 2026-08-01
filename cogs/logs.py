@@ -21,15 +21,23 @@ class Logs(commands.Cog):
         log_type="moderation"
     ):
 
-        # ON/OFF確認
+        print("send_log が呼ばれた")
+        print("log_type =", log_type)
+
         if os.path.exists("logtoggle.json"):
             with open("logtoggle.json", "r", encoding="utf-8") as f:
                 toggle = json.load(f)
 
+            print(toggle)
+            print(toggle.get(str(guild.id), {}))
+            print(toggle.get(str(guild.id), {}).get(log_type, False))
+
             if not toggle.get(str(guild.id), {}).get(log_type, False):
+                print("OFFなので送信しません")
                 return
 
-        # ログチャンネル確認
+        print("ONなので送信します")
+
         if not os.path.exists("logs.json"):
             return
 
@@ -46,6 +54,7 @@ class Logs(commands.Cog):
 
         if channel:
             await channel.send(embed=embed)
+
 
     # =========================
     # 管理ログ設定

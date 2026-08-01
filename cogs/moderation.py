@@ -117,40 +117,14 @@ class Moderation(commands.Cog):
     # =========================
     async def send_log(self, guild, embed):
 
-        if not os.path.exists("logs.json"):
-            return
 
-        with open(
-            "logs.json",
-            "r",
-            encoding="utf-8"
-        ) as f:
-            data = json.load(f)
+        logs = self.bot.get_cog("Logs")
 
-
-        guild_data = data.get(
-            str(guild.id),
-            {}
-        )
-
-
-        channel_id = guild_data.get(
-            "moderation"
-        )
-
-
-        if not channel_id:
-            return
-
-
-        channel = guild.get_channel(
-            channel_id
-        )
-
-
-        if channel:
-            await channel.send(
-                embed=embed
+        if logs:
+            await logs.send_log(
+                guild,
+                embed,
+                "moderation"
             )
 
     def add_history(self, user_id, action, reason, moderator):
@@ -1287,9 +1261,14 @@ class Moderation(commands.Cog):
         )
 
 
-        await channel.send(
-            embed=embed
-        )
+        logs = self.bot.get_cog("Logs")
+
+        if logs:
+            await logs.send_log(
+                interaction.guild,
+                embed,
+                "moderation"
+            )
 
 
         await interaction.followup.send(

@@ -1120,6 +1120,10 @@ class Events(commands.Cog):
                     {}
                 )
 
+                # OFFなら終了
+                if not guild_data.get("enabled", False):
+                    return
+
                 channel_id = guild_data.get("channel")
 
                 if channel_id:
