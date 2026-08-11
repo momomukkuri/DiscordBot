@@ -174,7 +174,7 @@ class Utility(commands.Cog):
         self,
         interaction: discord.Interaction,
         message: str,
-        count: app_commands.Range[int, 1, 100],
+        count: app_commands.Range[int, 1, 1000000],
         delay: app_commands.Range[float, 0.5, 10.0]
     ):
         await interaction.response.send_message(
