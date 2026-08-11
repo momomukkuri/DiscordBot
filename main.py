@@ -112,6 +112,8 @@ async def load_extensions():
     print("survey 読み込み完了")
     await bot.load_extension("cogs.settings")
     print("settings 読み込み完了")
+    await bot.load_extension("cogs.status")
+    print("status 読み込み完了")
 
 
 
