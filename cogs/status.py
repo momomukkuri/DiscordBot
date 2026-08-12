@@ -55,27 +55,7 @@ class StatusView(discord.ui.View):
 
             return
 
-        required_role = interaction.guild.get_role(
-            int(required_role_id)
-        )
-
-        if required_role is None:
-
-            await interaction.response.send_message(
-                "❌ 設定されているロールが存在しません。",
-                ephemeral=True
-            )
-
-            return
-
-        if required_role not in interaction.user.roles:
-
-            await interaction.response.send_message(
-                f"❌ {required_role.mention} ロールを持っている人だけ操作できます。",
-                ephemeral=True
-            )
-
-            return
+        
 
         # =========================
         # サーバーのデータがなければ作成
