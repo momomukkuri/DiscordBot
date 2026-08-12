@@ -22,6 +22,61 @@ class StatusView(discord.ui.View):
         guild_id = str(interaction.guild.id)
         user_id = str(interaction.user.id)
 
+        allowed_role_ids = self.cog.status_roles.get(
+            guild_id,
+            []
+        )
+
+        if not allowed_role_ids:
+
+            await interaction.response.send_message(
+                "❌ 対応状況を操作できるロールが設定されていません。",
+                ephemeral=True
+            )
+
+            return
+
+        user_role_ids = {
+            role.id
+            for role in interaction.user.roles
+        }
+
+        has_permission = any(
+            role_id in user_role_ids
+            for role_id in allowed_role_ids
+        )
+
+        if not has_permission:
+
+            await interaction.response.send_message(
+                "❌ 対応状況を操作できるロールを持っていません。",
+                ephemeral=True
+            )
+
+            return
+
+        required_role = interaction.guild.get_role(
+            int(required_role_id)
+        )
+
+        if required_role is None:
+
+            await interaction.response.send_message(
+                "❌ 設定されているロールが存在しません。",
+                ephemeral=True
+            )
+
+            return
+
+        if required_role not in interaction.user.roles:
+
+            await interaction.response.send_message(
+                f"❌ {required_role.mention} ロールを持っている人だけ操作できます。",
+                ephemeral=True
+            )
+
+            return
+
         # =========================
         # サーバーのデータがなければ作成
         # =========================
@@ -290,6 +345,71 @@ class StatusView(discord.ui.View):
             embed=embed,
             view=self
         )
+
+
+
+
+class StatusRoleSelect(discord.ui.RoleSelect):
+
+    def __init__(self, cog):
+
+        super().__init__(
+            placeholder="対応状況を操作できるロールを選択",
+            min_values=1,
+            max_values=10,
+            custom_id="status_role_select"
+        )
+
+        self.cog = cog
+
+    async def callback(
+        self,
+        interaction: discord.Interaction
+    ):
+
+        if not interaction.user.guild_permissions.manage_guild:
+
+            await interaction.response.send_message(
+                "❌ サーバー管理権限が必要です。",
+                ephemeral=True
+            )
+
+            return
+
+        roles = self.values
+
+        guild_id = str(interaction.guild.id)
+
+        self.cog.status_roles[guild_id] = [
+            role.id
+            for role in roles
+        ]
+
+        self.cog.save_status_roles()
+
+        role_text = "\n".join(
+            f"・{role.mention}"
+            for role in roles
+        )
+
+        await interaction.response.send_message(
+            f"✅ 対応状況を操作できるロールを設定しました。\n\n"
+            f"{role_text}",
+            ephemeral=True
+        )
+
+
+
+
+class StatusRoleView(discord.ui.View):
+
+    def __init__(self, cog):
+
+        super().__init__(timeout=60)
+
+        self.add_item(
+            StatusRoleSelect(cog)
+        )        
     
     
 
@@ -303,6 +423,9 @@ class Status(commands.Cog):
 
         self.panel_file = "status_panel.json"
         self.panels = self.load_panels()
+
+        self.role_file = "status_role.json"
+        self.status_roles = self.load_status_roles()
 
         bot.add_view(StatusView(self))
 
@@ -369,6 +492,61 @@ class Status(commands.Cog):
                 ensure_ascii=False,
                 indent=4
             )
+    
+    def load_status_roles(self):
+
+        if not os.path.exists(self.role_file):
+            return {}
+
+        try:
+
+            with open(
+                self.role_file,
+                "r",
+                encoding="utf-8"
+            ) as f:
+
+                return json.load(f)
+
+        except json.JSONDecodeError:
+
+            print(
+                "status_role.json が空または壊れています。"
+            )
+
+            return {}
+
+
+    def save_status_roles(self):
+
+        with open(
+            self.role_file,
+            "w",
+            encoding="utf-8"
+        ) as f:
+
+            json.dump(
+                self.status_roles,
+                f,
+                ensure_ascii=False,
+                indent=4
+            )
+    
+    @app_commands.command(
+        name="statusrole",
+        description="対応状況を操作できるロールを設定します"
+    )
+    @app_commands.checks.has_permissions(manage_guild=True)
+    async def statusrole(
+        self,
+        interaction: discord.Interaction
+    ):
+
+        await interaction.response.send_message(
+            "対応状況を操作できるロールを選択してください。",
+            view=StatusRoleView(self),
+            ephemeral=True
+        )
 
     # =========================
     # /status
