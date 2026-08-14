@@ -453,12 +453,6 @@ class Events(commands.Cog):
         with open(self.xsave_file, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=4)
 
-        with open(self.xsave_file, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=4)
-
-        with open(self.xsave_file, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=4)
-
         await interaction.response.send_message(
             f"✅ X動画保存を **{state.upper()}** にしました。",
             ephemeral=True
@@ -865,7 +859,6 @@ class Events(commands.Cog):
     async def on_member_remove(self, member):
 
         print(f"退出イベント発生: {member}")
-
         print("退出イベント発生")
 
         await asyncio.sleep(1)
@@ -873,16 +866,20 @@ class Events(commands.Cog):
         executor = "不明"
         reason = "理由なし"
 
-        async for entry in member.guild.audit_logs(
-            limit=5,
-            action=discord.AuditLogAction.kick
-        ):
-            now = datetime.datetime.now(datetime.timezone.utc)
+        # =========================
+        # Kick判定
+        # =========================
+        try:
+
+            now = datetime.datetime.now(
+                datetime.timezone.utc
+            )
 
             async for entry in member.guild.audit_logs(
                 limit=5,
                 action=discord.AuditLogAction.kick
             ):
+
                 if entry.target.id != member.id:
                     continue
 
@@ -893,9 +890,16 @@ class Events(commands.Cog):
                 reason = entry.reason or "理由なし"
                 break
 
+        except Exception as e:
 
+            print(
+                "Kick Audit Error:",
+                e
+            )
+
+        # =========================
         # Kickの場合
-
+        # =========================
         if executor != "不明":
 
             embed = discord.Embed(
@@ -922,7 +926,6 @@ class Events(commands.Cog):
                 inline=False
             )
 
-
             await self.send_log(
                 member.guild,
                 embed,
@@ -931,9 +934,9 @@ class Events(commands.Cog):
 
             return
 
-
+        # =========================
         # 普通の退出
-
+        # =========================
         embed = discord.Embed(
             description=f"**{member.display_name}** がサーバーを退出しました",
             color=discord.Color.red(),
@@ -949,8 +952,13 @@ class Events(commands.Cog):
             url=member.display_avatar.url
         )
 
+        # =========================
+        # アカウント作成
+        # =========================
         created = member.created_at
+
         now = discord.utils.utcnow()
+
         delta = now - created
 
         days = delta.days
@@ -966,8 +974,13 @@ class Events(commands.Cog):
             inline=False
         )
 
+        # =========================
+        # サーバー滞在期間
+        # =========================
         if member.joined_at:
+
             joined = member.joined_at
+
             stay = now - joined
 
             d = stay.days
@@ -983,6 +996,9 @@ class Events(commands.Cog):
                 inline=False
             )
 
+        # =========================
+        # 退出後の人数
+        # =========================
         embed.add_field(
             name="👥 退出後の人数",
             value=f"{member.guild.member_count}人",
@@ -990,6 +1006,7 @@ class Events(commands.Cog):
         )
 
         if member.bot:
+
             embed.add_field(
                 name="🤖 アカウント",
                 value="Bot",
@@ -1001,6 +1018,8 @@ class Events(commands.Cog):
             embed,
             "joinleave"
         )
+
+
     # =========================
     # Join
     # =========================

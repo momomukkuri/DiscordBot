@@ -1,22 +1,30 @@
 import os
 import asyncio
+import traceback
+
 import discord
 from discord.ext import commands
 from dotenv import load_dotenv
 
 
-
+# =========================
 # .envを読み込む
+# =========================
+
 load_dotenv()
 
 TOKEN = os.getenv("TOKEN")
 
-print("TOKEN:", TOKEN)
-print("長さ:", len(TOKEN) if TOKEN else None)
+if not TOKEN:
+    raise RuntimeError("TOKENが設定されていません")
 
 
+# =========================
 # Intents
+# =========================
+
 intents = discord.Intents.default()
+
 intents.message_content = True
 intents.members = True
 intents.messages = True
@@ -24,59 +32,85 @@ intents.moderation = True
 intents.guilds = True
 
 
+# =========================
 # Bot作成
+# =========================
+
 bot = commands.Bot(
     command_prefix="!",
     intents=intents
 )
 
-import traceback
+
+# =========================
+# スラッシュコマンドエラー
+# =========================
 
 @bot.tree.error
-async def on_app_command_error(interaction, error):
+async def on_app_command_error(
+    interaction: discord.Interaction,
+    error
+):
+
     print("===== スラッシュコマンドエラー =====")
+
     traceback.print_exception(
         type(error),
         error,
         error.__traceback__
     )
 
+    try:
+
+        if interaction.response.is_done():
+
+            await interaction.followup.send(
+                "❌ コマンド実行中にエラーが発生しました",
+                ephemeral=True
+            )
+
+        else:
+
+            await interaction.response.send_message(
+                "❌ コマンド実行中にエラーが発生しました",
+                ephemeral=True
+            )
+
+    except Exception as e:
+
+        print("エラー通知にも失敗しました:", e)
+
+
+# =========================
 # 起動時
+# =========================
+
 @bot.event
 async def on_ready():
 
     print(f"{bot.user} が起動しました！")
 
     try:
+
         synced = await bot.tree.sync()
 
-        print(f"{len(synced)}個のコマンドを同期しました")
+        print(
+            f"{len(synced)}個のコマンドを同期しました"
+        )
 
         for cmd in synced:
+
             print(cmd.name)
 
     except Exception as e:
+
         print("同期エラー:", e)
 
 
-
-    if interaction.response.is_done():
-
-        await interaction.followup.send(
-            "❌ コマンド実行中にエラーが発生しました",
-            ephemeral=True
-        )
-
-    else:
-
-        await interaction.response.send_message(
-            "❌ コマンド実行中にエラーが発生しました",
-            ephemeral=True
-        )
-
-
-
+# =========================
 # Cog読み込み
+# =========================
+
 async def load_extensions():
 
     await bot.load_extension("cogs.utility")
@@ -108,16 +142,21 @@ async def load_extensions():
 
     await bot.load_extension("cogs.rolepanel")
     print("rolepanel 読み込み完了")
+
     await bot.load_extension("cogs.survey")
     print("survey 読み込み完了")
+
     await bot.load_extension("cogs.settings")
     print("settings 読み込み完了")
+
     await bot.load_extension("cogs.status")
     print("status 読み込み完了")
 
 
-
+# =========================
 # Bot起動
+# =========================
+
 async def main():
 
     async with bot:
@@ -127,6 +166,8 @@ async def main():
         await bot.start(TOKEN)
 
 
-
+# =========================
 # 実行
+# =========================
+
 asyncio.run(main())
