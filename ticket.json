@@ -1,10 +1,16 @@
 {
     "category": 1529093669746114712,
     "log_channel": 1529094944684507209,
-    "ticket_number": 10,
-    "panel_title": "ニガチケット",
-    "panel_description": "なんでも相談していいよ",
-    "panel_image": "https://cdn.discordapp.com/ephemeral-attachments/1529116923558891729/1529118048001458378/Kim_Jong-un_and_Vladimir_Putin_2023-09-13_12_cropped.jpg?ex=6a60c5a8&is=6a5f7428&hm=6c46b7f3ab3043382af1a5a2b810cbd95c99132ad672364788b9b98ca4b22f76&",
+    "ticket_number": 24,
+    "panel_title": "Ticket",
+    "panel_description": "Ticket",
+    "panel_image": null,
     "mention_role": null,
-    "first_message": "チケットが追加されました"
+    "first_message": "スタッフがお伺いします。",
+    "normal_category": 1529085368173985915,
+    "normal_log_channel": 1537839757021937684,
+    "normal_staff_role": null,
+    "sale_category": 1538552191395299368,
+    "sale_log_channel": 1537839757021937684,
+    "sale_staff_role": null
 }

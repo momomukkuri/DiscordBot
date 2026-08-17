@@ -3,3 +3,5 @@ python-dotenv
 discord.py
 python-dotenv
 yt-dlp
+paypayopa
+python-dotenv

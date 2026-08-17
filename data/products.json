@@ -1,0 +1,32 @@
+{
+    "e1d64ccc842d": {
+        "id": "e1d64ccc842d",
+        "guild_id": 1510631337051164702,
+        "seller_id": 1507412750974980276,
+        "name": "テスト商品",
+        "price": 100,
+        "description": "テスト",
+        "enabled": true,
+        "created_at": "2026-08-16T22:33:40.131547"
+    },
+    "ebbdadb68b3c": {
+        "id": "ebbdadb68b3c",
+        "guild_id": 1510631337051164702,
+        "seller_id": 1507412750974980276,
+        "name": "２",
+        "price": 100,
+        "description": "テスト",
+        "enabled": true,
+        "created_at": "2026-08-16T23:18:36.266237"
+    },
+    "e65b3f1c1781": {
+        "id": "e65b3f1c1781",
+        "guild_id": 1510631337051164702,
+        "seller_id": 1507412750974980276,
+        "name": "a",
+        "price": 100,
+        "description": "１",
+        "enabled": true,
+        "created_at": "2026-08-17T00:08:26.089096"
+    }
+}

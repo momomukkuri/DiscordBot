@@ -202,11 +202,6 @@ class VerifyView(discord.ui.View):
             color=discord.Color.green()
         )
 
-        await interaction.response.send_message(
-            embed=embed,
-            ephemeral=True
-        )
-
         # DM送信
         try:
             dm = discord.Embed(
@@ -285,29 +280,81 @@ class Verify(commands.Cog):
         image: discord.Attachment | None = None
     ):
 
+        # =========================
+        # 最初にInteractionを確保
+        # =========================
+
+        await interaction.response.defer(
+            ephemeral=True
+        )
+
+        # =========================
+        # 色
+        # =========================
+
         if color is None:
-            color_value = 0x5865F2  # デフォルト色（Discord Blue）
+            color_value = 0x5865F2
         else:
-            color_value = int(color.value, 16)
-            
+            color_value = int(
+                color.value,
+                16
+            )
 
-        data = get_guild_data(interaction.guild.id)
+        # =========================
+        # データ取得
+        # =========================
 
-        gid = str(interaction.guild.id)
+        data = get_guild_data(
+            interaction.guild.id
+        )
+
+        gid = str(
+            interaction.guild.id
+        )
+
+        # =========================
+        # 設定保存
+        # =========================
 
         data[gid]["role"] = role.id
-        data[gid]["unverified"] = unverified.id if unverified else None
+
+        data[gid]["unverified"] = (
+            unverified.id
+            if unverified
+            else None
+        )
+
         data[gid]["title"] = title
         data[gid]["description"] = description
         data[gid]["button"] = button
         data[gid]["color"] = color_value
-        data[gid]["image"] = image.url if image else None
+
+        # 画像/GIF
+        data[gid]["image"] = (
+            image.url
+            if image
+            else None
+        )
 
         save_verify(data)
 
+        # =========================
+        # ルール
+        # =========================
 
-        rules = data[gid].get("rules", "ルールは設定されていません。")
-        rules = rules.replace("\r\n", "\n")
+        rules = data[gid].get(
+            "rules",
+            "ルールは設定されていません。"
+        )
+
+        rules = rules.replace(
+            "\r\n",
+            "\n"
+        )
+
+        # =========================
+        # Embed作成
+        # =========================
 
         embed = discord.Embed(
             title=title,
@@ -320,11 +367,27 @@ class Verify(commands.Cog):
             "━━━━━━━━━━━━━━━━━━\n"
             f"{rules}\n"
             "━━━━━━━━━━━━━━━━━━\n\n"
-            "✅ **下のボタンを押すとルールに同意したものとみなします。**"
+            "✅ **下のボタンを押すと"
+            "ルールに同意したものとみなします。**"
         )
 
-        if image:
-            embed.set_image(url=image.url)
+        # =========================
+        # 画像 / GIF
+        # =========================
+
+        file = None
+
+        if image is not None:
+
+            file = await image.to_file()
+
+            embed.set_image(
+                url=f"attachment://{image.filename}"
+            )
+
+        # =========================
+        # 認証後ロール
+        # =========================
 
         embed.add_field(
             name="認証後",
@@ -332,23 +395,50 @@ class Verify(commands.Cog):
             inline=False
         )
 
+        # =========================
+        # 未認証ロール
+        # =========================
+
         if unverified:
+
             embed.add_field(
                 name="未認証ロール",
                 value=unverified.mention,
                 inline=False
             )
 
+        # =========================
+        # Footer
+        # =========================
+
         embed.set_footer(
             text="Verification System"
         )
 
-        await interaction.channel.send(
-            embed=embed,
-            view=VerifyView(button)
-        )
+        # =========================
+        # パネル送信
+        # =========================
 
-        await interaction.response.send_message(
+        if file is not None:
+
+            await interaction.channel.send(
+                embed=embed,
+                view=VerifyView(button),
+                file=file
+            )
+
+        else:
+
+            await interaction.channel.send(
+                embed=embed,
+                view=VerifyView(button)
+            )
+
+        # =========================
+        # 完了通知
+        # =========================
+
+        await interaction.followup.send(
             "✅ 認証パネルを設置しました。",
             ephemeral=True
         )

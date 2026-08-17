@@ -7,9 +7,9 @@ from discord.ext import commands
 from dotenv import load_dotenv
 
 
-# =========================
+# =========================================================
 # .envを読み込む
-# =========================
+# =========================================================
 
 load_dotenv()
 
@@ -19,9 +19,23 @@ if not TOKEN:
     raise RuntimeError("TOKENが設定されていません")
 
 
-# =========================
+# =========================================================
+# サーバーID
+# =========================================================
+# Discordで対象サーバーを右クリック
+# →「サーバーIDをコピー」
+# → 下の数字を入れる
+#
+# 例：
+# GUILD_ID = 123456789012345678
+# =========================================================
+
+GUILD_ID = 1538575152114303036
+
+
+# =========================================================
 # Intents
-# =========================
+# =========================================================
 
 intents = discord.Intents.default()
 
@@ -32,9 +46,9 @@ intents.moderation = True
 intents.guilds = True
 
 
-# =========================
+# =========================================================
 # Bot作成
-# =========================
+# =========================================================
 
 bot = commands.Bot(
     command_prefix="!",
@@ -42,9 +56,9 @@ bot = commands.Bot(
 )
 
 
-# =========================
+# =========================================================
 # スラッシュコマンドエラー
-# =========================
+# =========================================================
 
 @bot.tree.error
 async def on_app_command_error(
@@ -78,84 +92,146 @@ async def on_app_command_error(
 
     except Exception as e:
 
-        print("エラー通知にも失敗しました:", e)
+        print(
+            "エラー通知にも失敗しました:",
+            e
+        )
 
 
-# =========================
+# =========================================================
 # 起動時
-# =========================
+# =========================================================
 
 @bot.event
 async def on_ready():
 
+    print("================================")
     print(f"{bot.user} が起動しました！")
+    print("================================")
 
     try:
 
-        synced = await bot.tree.sync()
+        guild = discord.Object(
+            id=GUILD_ID
+        )
+
+        # グローバルに登録されているコマンドを
+        # このサーバーへコピー
+        bot.tree.copy_global_to(
+            guild=guild
+        )
+
+        # サーバーへ同期
+        synced = await bot.tree.sync(
+            guild=guild
+        )
 
         print(
-            f"{len(synced)}個のコマンドを同期しました"
+            f"スラッシュコマンドを {len(synced)} 個同期しました"
         )
 
         for cmd in synced:
+            print(
+                f"  /{cmd.name}"
+            )
 
-            print(cmd.name)
+        print("================================")
 
     except Exception as e:
 
-        print("同期エラー:", e)
+        print("同期エラー:")
+        traceback.print_exc()
 
 
-# =========================
+# =========================================================
 # Cog読み込み
-# =========================
+# =========================================================
 
 async def load_extensions():
 
-    await bot.load_extension("cogs.utility")
-    print("utility 読み込み完了")
+    await bot.load_extension(
+        "cogs.utility"
+    )
+    print("✅ cogs.utility 読み込み完了")
 
-    await bot.load_extension("cogs.info")
-    print("info 読み込み完了")
+    await bot.load_extension(
+        "cogs.info"
+    )
+    print("✅ cogs.info 読み込み完了")
 
-    await bot.load_extension("cogs.moderation")
-    print("moderation 読み込み完了")
+    await bot.load_extension(
+        "cogs.moderation"
+    )
+    print("✅ cogs.moderation 読み込み完了")
 
-    await bot.load_extension("cogs.events")
-    print("events 読み込み完了")
+    await bot.load_extension(
+        "cogs.events"
+    )
+    print("✅ cogs.events 読み込み完了")
 
-    await bot.load_extension("cogs.logs")
-    print("logs 読み込み完了")
+    await bot.load_extension(
+        "cogs.logs"
+    )
+    print("✅ cogs.logs 読み込み完了")
 
-    await bot.load_extension("cogs.verify")
-    print("verify 読み込み完了")
+    await bot.load_extension(
+        "cogs.verify"
+    )
+    print("✅ cogs.verify 読み込み完了")
 
-    await bot.load_extension("cogs.ticket")
-    print("ticket 読み込み完了")
+    await bot.load_extension(
+        "cogs.ticket"
+    )
+    print("✅ cogs.ticket 読み込み完了")
 
-    await bot.load_extension("cogs.giveaway")
-    print("giveaway 読み込み完了")
+    await bot.load_extension(
+        "cogs.giveaway"
+    )
+    print("✅ cogs.giveaway 読み込み完了")
 
-    await bot.load_extension("cogs.afk")
-    print("afk 読み込み完了")
+    await bot.load_extension(
+        "cogs.afk"
+    )
+    print("✅ cogs.afk 読み込み完了")
 
-    await bot.load_extension("cogs.rolepanel")
-    print("rolepanel 読み込み完了")
+    await bot.load_extension(
+        "cogs.rolepanel"
+    )
+    print("✅ cogs.rolepanel 読み込み完了")
 
-    await bot.load_extension("cogs.survey")
-    print("survey 読み込み完了")
+    await bot.load_extension(
+        "cogs.survey"
+    )
+    print("✅ cogs.survey 読み込み完了")
 
-    await bot.load_extension("cogs.settings")
-    print("settings 読み込み完了")
+    await bot.load_extension(
+        "cogs.settings"
+    )
+    print("✅ cogs.settings 読み込み完了")
 
-    await bot.load_extension("cogs.status")
-    print("status 読み込み完了")
+    await bot.load_extension(
+        "cogs.status"
+    )
+    print("✅ cogs.status 読み込み完了")
+
+    await bot.load_extension(
+        "cogs.shop"
+    )
+    print("✅ cogs.shop 読み込み完了")
+
+    await bot.load_extension(
+        "cogs.paypay"
+    )
+    print("✅ cogs.paypay 読み込み完了")
+
+    print("================================")
+    print("Cog読み込み完了")
+    print("================================")
 
 
-# =========================
+# =========================================================
 # Bot起動
-# =========================
+# =========================================================
 
 async def main():
 
@@ -163,11 +239,15 @@ async def main():
 
         await load_extensions()
 
-        await bot.start(TOKEN)
+        await bot.start(
+            TOKEN
+        )
 
 
-# =========================
+# =========================================================
 # 実行
-# =========================
+# =========================================================
 
-asyncio.run(main())
+asyncio.run(
+    main()
+)

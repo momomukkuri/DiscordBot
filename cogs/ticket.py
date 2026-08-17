@@ -8,64 +8,103 @@ import discord
 from discord.ext import commands
 from discord import app_commands
 
+
+# =========================================================
+# 設定
+# =========================================================
+
 CONFIG_FILE = "ticket.json"
 
 
+# =========================================================
+# Config 読み込み
+# =========================================================
+
 def load_config():
-    if not os.path.exists(CONFIG_FILE):
-        return {
-            "category": None,
-            "log_channel": None,
-
-            "ticket_number": 0,
-
-            "panel_title": "🎫 サポートセンター",
-
-            "panel_description":
-                "サポートが必要な場合は\n"
-                "下のボタンを押してください。",
-
-            "panel_image": None,
-
-            "mention_role": None,
-
-            "first_message":
-                "スタッフがお伺いします。"
-        }
-
-    with open(CONFIG_FILE, "r", encoding="utf-8") as f:
-        data = json.load(f)
 
     defaults = {
 
-        "category": None,
-        "log_channel": None,
+        # =========================
+        # 通常Ticket
+        # =========================
+
+        "normal_category": None,
+        "normal_log_channel": None,
+        "normal_staff_role": None,
+
+        # =========================
+        # 販売Ticket
+        # =========================
+
+        "sale_category": None,
+        "sale_log_channel": None,
+        "sale_staff_role": None,
+
+        # =========================
+        # 共通
+        # =========================
 
         "ticket_number": 0,
 
         "panel_title": "🎫 サポートセンター",
 
-        "panel_description":
+        "panel_description": (
             "サポートが必要な場合は\n"
-            "下のボタンを押してください。",
+            "下のボタンを押してください。"
+        ),
 
         "panel_image": None,
 
-        "mention_role": None,
-
-        "first_message":
-            "スタッフがお伺いします。"
-
+        "first_message": "スタッフがお伺いします。"
     }
 
+    # ファイルがない場合
+    if not os.path.exists(CONFIG_FILE):
+
+        save_config(defaults)
+
+        return defaults
+
+    try:
+
+        with open(
+            CONFIG_FILE,
+            "r",
+            encoding="utf-8"
+        ) as f:
+
+            data = json.load(f)
+
+    except (
+        json.JSONDecodeError,
+        OSError
+    ):
+
+        data = {}
+
+    # 足りない設定を追加
     for key, value in defaults.items():
-        data.setdefault(key, value)
+
+        data.setdefault(
+            key,
+            value
+        )
 
     return data
 
 
+# =========================================================
+# Config 保存
+# =========================================================
+
 def save_config(data):
-    with open(CONFIG_FILE, "w", encoding="utf-8") as f:
+
+    with open(
+        CONFIG_FILE,
+        "w",
+        encoding="utf-8"
+    ) as f:
+
         json.dump(
             data,
             f,
@@ -77,6 +116,10 @@ def save_config(data):
 config = load_config()
 
 
+# =========================================================
+# パネルEmbed
+# =========================================================
+
 def create_panel_embed():
 
     embed = discord.Embed(
@@ -87,7 +130,10 @@ def create_panel_embed():
     )
 
     if config["panel_image"]:
-        embed.set_image(url=config["panel_image"])
+
+        embed.set_image(
+            url=config["panel_image"]
+        )
 
     embed.set_footer(
         text="Ticket System"
@@ -96,59 +142,218 @@ def create_panel_embed():
     return embed
 
 
-async def create_transcript(channel: discord.TextChannel):
+# =========================================================
+# Ticket判定
+# =========================================================
+
+def get_ticket_data(channel):
+
+    if not isinstance(
+        channel,
+        discord.TextChannel
+    ):
+        return None
+
+    topic = channel.topic
+
+    if not topic:
+        return None
+
+    # 新形式
+    try:
+
+        data = json.loads(topic)
+
+        if isinstance(data, dict):
+
+            if data.get("type") in (
+                "normal",
+                "sale"
+            ):
+
+                return data
+
+    except (
+        json.JSONDecodeError,
+        TypeError
+    ):
+        pass
+
+    # 旧形式
+    try:
+
+        owner_id = int(topic)
+
+        return {
+            "type": "normal",
+            "owner_id": owner_id
+        }
+
+    except (
+        TypeError,
+        ValueError
+    ):
+        return None
+
+
+# =========================================================
+# Ticket所有者取得
+# =========================================================
+
+def get_ticket_users(channel):
+
+    data = get_ticket_data(channel)
+
+    if not data:
+        return []
+
+    # =========================
+    # 通常Ticket
+    # =========================
+
+    if data.get("type") == "normal":
+
+        owner_id = data.get(
+            "owner_id"
+        )
+
+        if owner_id:
+
+            return [
+                int(owner_id)
+            ]
+
+    # =========================
+    # 販売Ticket
+    # =========================
+
+    if data.get("type") == "sale":
+
+        users = []
+
+        buyer_id = data.get(
+            "buyer_id"
+        )
+
+        seller_id = data.get(
+            "seller_id"
+        )
+
+        if buyer_id:
+            users.append(
+                int(buyer_id)
+            )
+
+        if seller_id:
+            users.append(
+                int(seller_id)
+            )
+
+        return users
+
+    return []
+
+
+# =========================================================
+# Ticket種類取得
+# =========================================================
+
+def get_ticket_type(channel):
+
+    data = get_ticket_data(channel)
+
+    if not data:
+        return None
+
+    return data.get("type")
+
+
+# =========================================================
+# Transcript
+# =========================================================
+
+async def create_transcript(
+    channel: discord.TextChannel
+):
 
     html_data = f"""
 <html>
+
 <head>
+
 <meta charset="utf-8">
-<title>{channel.name}</title>
+
+<title>
+{html.escape(channel.name)}
+</title>
 
 <style>
 
-body{{
-background:#36393f;
-color:white;
-font-family:Arial;
-padding:20px;
+body {{
+    background:#36393f;
+    color:white;
+    font-family:Arial;
+    padding:20px;
 }}
 
-.message{{
-margin-bottom:20px;
-padding:10px;
-background:#2f3136;
-border-radius:8px;
+.message {{
+    margin-bottom:20px;
+    padding:10px;
+    background:#2f3136;
+    border-radius:8px;
 }}
 
-.author{{
-font-weight:bold;
-color:#57F287;
+.author {{
+    font-weight:bold;
+    color:#57F287;
 }}
 
-.time{{
-font-size:12px;
-color:gray;
+.time {{
+    font-size:12px;
+    color:gray;
 }}
 
-.content{{
-margin-top:5px;
-white-space:pre-wrap;
+.content {{
+    margin-top:5px;
+    white-space:pre-wrap;
+}}
+
+img {{
+    max-width:600px;
+    border-radius:8px;
 }}
 
 </style>
+
 </head>
+
 <body>
 
-<h2>{channel.guild.name}</h2>
-<h3>{channel.name}</h3>
+<h2>
+{html.escape(channel.guild.name)}
+</h2>
+
+<h3>
+{html.escape(channel.name)}
+</h3>
 
 """
 
-    async for message in channel.history(limit=None, oldest_first=True):
+    # =====================================================
+    # メッセージ取得
+    # =====================================================
 
-        content = html.escape(message.content)
+    async for message in channel.history(
+        limit=None,
+        oldest_first=True
+    ):
+
+        content = html.escape(
+            message.content
+        )
 
         html_data += f"""
+
 <div class="message">
 
 <div class="author">
@@ -165,74 +370,133 @@ white-space:pre-wrap;
 
 """
 
+        # =================================================
+        # 添付ファイル
+        # =================================================
+
         if message.attachments:
 
-            html_data += "<br><b>Attachments</b><br>"
+            html_data += (
+                "<br><b>Attachments</b><br>"
+            )
 
             for attachment in message.attachments:
 
-                # 画像なら表示
-                if (
+                content_type = (
                     attachment.content_type
-                    and attachment.content_type.startswith("image")
+                    or ""
+                )
+
+                # -----------------------------
+                # 画像
+                # -----------------------------
+
+                if content_type.startswith(
+                    "image"
                 ):
+
                     html_data += (
-                        f'<img src="{attachment.url}" '
-                        f'style="max-width:600px;border-radius:8px;"><br>'
+                        f'<img src="{html.escape(attachment.url)}" '
+                        f'style="max-width:600px;'
+                        f'border-radius:8px;"><br>'
                     )
 
-                # 動画ならリンク
-                elif (
-                    attachment.content_type
-                    and attachment.content_type.startswith("video")
+                # -----------------------------
+                # 動画
+                # -----------------------------
+
+                elif content_type.startswith(
+                    "video"
                 ):
+
                     html_data += (
-                        f'<a href="{attachment.url}">'
-                        f'🎥 {attachment.filename}'
-                        '</a><br>'
+                        f'<a href="{html.escape(attachment.url)}">'
+                        f'🎥 '
+                        f'{html.escape(attachment.filename)}'
+                        f'</a><br>'
                     )
 
+                # -----------------------------
                 # その他
+                # -----------------------------
+
                 else:
+
                     html_data += (
-                        f'<a href="{attachment.url}">'
-                        f'📄 {attachment.filename}'
-                        '</a><br>'
+                        f'<a href="{html.escape(attachment.url)}">'
+                        f'📄 '
+                        f'{html.escape(attachment.filename)}'
+                        f'</a><br>'
                     )
+
+        # =================================================
+        # Embed
+        # =================================================
 
         if message.embeds:
 
-            html_data += "<br><b>Embed</b><br>"
+            html_data += (
+                "<br><b>Embed</b><br>"
+            )
 
             for embed in message.embeds:
 
                 if embed.title:
+
                     html_data += (
-                        f"<b>{html.escape(embed.title)}</b><br>"
+                        f"<b>"
+                        f"{html.escape(embed.title)}"
+                        f"</b><br>"
                     )
 
                 if embed.description:
+
                     html_data += (
-                        html.escape(embed.description)
+                        html.escape(
+                            embed.description
+                        )
                         + "<br>"
                     )
 
         html_data += """
-        </div>
-        </div>
-        """
 
-    html_data += "</body></html>"
+</div>
+
+"""
+
+    html_data += """
+
+</body>
+
+</html>
+
+"""
 
     return discord.File(
-        io.BytesIO(html_data.encode("utf-8")),
+        io.BytesIO(
+            html_data.encode("utf-8")
+        ),
         filename=f"{channel.name}.html"
     )
 
-class CloseConfirmView(discord.ui.View):
+
+# =========================================================
+# Ticket閉じる確認View
+# =========================================================
+
+class CloseConfirmView(
+    discord.ui.View
+):
 
     def __init__(self):
-        super().__init__(timeout=60)
+
+        super().__init__(
+            timeout=60
+        )
+
+    # =====================================================
+    # はい
+    # =====================================================
 
     @discord.ui.button(
         label="✅ はい",
@@ -244,16 +508,52 @@ class CloseConfirmView(discord.ui.View):
         button: discord.ui.Button
     ):
 
-        await interaction.response.defer(ephemeral=True)
+        await interaction.response.defer(
+            ephemeral=True
+        )
 
         channel = interaction.channel
 
-        transcript = await create_transcript(channel)
+        # Transcript
+        transcript = await create_transcript(
+            channel
+        )
 
-        if config["log_channel"]:
+        # Ticket情報
+        ticket_data = get_ticket_data(
+            channel
+        )
+
+        ticket_type = get_ticket_type(
+            channel
+        )
+
+        # =================================================
+        # ログ先
+        # =================================================
+
+        log_channel_id = None
+
+        if ticket_type == "sale":
+
+            log_channel_id = config[
+                "sale_log_channel"
+            ]
+
+        elif ticket_type == "normal":
+
+            log_channel_id = config[
+                "normal_log_channel"
+            ]
+
+        # =================================================
+        # ログ送信
+        # =================================================
+
+        if log_channel_id:
 
             log = interaction.guild.get_channel(
-                config["log_channel"]
+                log_channel_id
             )
 
             if log:
@@ -276,27 +576,108 @@ class CloseConfirmView(discord.ui.View):
                     inline=False
                 )
 
-                try:
-                    member = interaction.guild.get_member(int(channel.topic))
+                # =========================================
+                # 通常Ticket
+                # =========================================
 
-                    owner = member.mention if member else f"ID: {channel.topic}"
-                except (TypeError, ValueError):
-                    owner = "不明"
+                if (
+                    ticket_data
+                    and ticket_type == "normal"
+                ):
 
-                embed.add_field(
-                    name="Owner",
-                    value=owner,
-                    inline=False
-                )
+                    owner_id = ticket_data.get(
+                        "owner_id"
+                    )
+
+                    if owner_id:
+
+                        embed.add_field(
+                            name="Owner",
+                            value=f"<@{owner_id}>",
+                            inline=False
+                        )
+
+                               # =========================================
+                # 販売Ticket
+                # =========================================
+
+                elif (
+                    ticket_data
+                    and ticket_type == "sale"
+                ):
+
+                    buyer_id = ticket_data.get(
+                        "buyer_id"
+                    )
+
+                    seller_id = ticket_data.get(
+                        "seller_id"
+                    )
+
+                    order_id = ticket_data.get(
+                        "order_id"
+                    )
+
+                    # -----------------------------
+                    # 購入者
+                    # -----------------------------
+
+                    if buyer_id:
+
+                        embed.add_field(
+                            name="👤 購入者",
+                            value=f"<@{buyer_id}>",
+                            inline=True
+                        )
+
+                    # -----------------------------
+                    # 販売者
+                    # -----------------------------
+
+                    if seller_id:
+
+                        embed.add_field(
+                            name="🏪 販売者",
+                            value=f"<@{seller_id}>",
+                            inline=True
+                        )
+
+                    # -----------------------------
+                    # 注文ID
+                    # -----------------------------
+
+                    if order_id:
+
+                        embed.add_field(
+                            name="🆔 注文ID",
+                            value=f"`{order_id}`",
+                            inline=False
+                        )
+
+                    # -----------------------------
+                    # 販売Ticketであることを明示
+                    # -----------------------------
+
+                    embed.title = "🛒 販売Ticket Closed"
+
+                    embed.color = discord.Color.orange()
 
                 await log.send(
                     embed=embed,
                     file=transcript
                 )
 
+        # =================================================
+        # 少し待って削除
+        # =================================================
+
         await asyncio.sleep(1)
 
         await channel.delete()
+
+    # =====================================================
+    # いいえ
+    # =====================================================
 
     @discord.ui.button(
         label="❌ いいえ",
@@ -313,11 +694,17 @@ class CloseConfirmView(discord.ui.View):
             view=None
         )
 
+# =========================================================
+# Ticket閉じるボタン
+# =========================================================
 
 class CloseView(discord.ui.View):
 
     def __init__(self):
-        super().__init__(timeout=None)
+
+        super().__init__(
+            timeout=None
+        )
 
     @discord.ui.button(
         label="🔒 チケットを閉じる",
@@ -330,45 +717,89 @@ class CloseView(discord.ui.View):
         button: discord.ui.Button
     ):
 
-        try:
-            owner_id = int(interaction.channel.topic)
-        except (TypeError, ValueError):
+        channel = interaction.channel
+
+        # =====================================================
+        # Ticket情報取得
+        # =====================================================
+
+        ticket_data = get_ticket_data(
+            channel
+        )
+
+        if not ticket_data:
+
             await interaction.response.send_message(
-                "❌ このチャンネルはチケットではありません。",
+                "❌ このチャンネルはTicketではありません。",
                 ephemeral=True
             )
+
             return
+
+        # =====================================================
+        # Ticket参加者
+        # =====================================================
+
+        allowed_users = get_ticket_users(
+            channel
+        )
+
+        # =====================================================
+        # スタッフ / 管理者判定
+        # =====================================================
+
+        is_staff = (
+            interaction.user.guild_permissions.manage_channels
+        )
+
+        # =====================================================
+        # 権限確認
+        # =====================================================
 
         if (
-            interaction.user.id != owner_id
-            and not interaction.user.guild_permissions.manage_channels
+            interaction.user.id not in allowed_users
+            and not is_staff
         ):
+
             await interaction.response.send_message(
-                "❌ チケット作成者またはスタッフのみ閉じられます。",
+                "❌ チケット作成者・購入者・販売者・スタッフのみ閉じられます。",
                 ephemeral=True
             )
+
             return
 
+        # =====================================================
+        # 確認
+        # =====================================================
 
         await interaction.response.send_message(
-            "本当に閉じますか？",
+            "⚠️ 本当にこのTicketを閉じますか？",
             view=CloseConfirmView(),
             ephemeral=True
         )
 
 
+# =========================================================
+# Ticketパネル
+# =========================================================
+
 class TicketPanel(discord.ui.View):
 
     def __init__(self, bot):
         super().__init__(timeout=None)
+
         self.bot = bot
 
+    # =====================================================
+    # 通常Ticket
+    # =====================================================
+
     @discord.ui.button(
-        label="🎫 チケットを作成",
+        label="🎫 通常Ticket",
         style=discord.ButtonStyle.green,
-        custom_id="ticket_create"
+        custom_id="ticket_create_normal"
     )
-    async def create(
+    async def create_normal(
         self,
         interaction: discord.Interaction,
         button: discord.ui.Button
@@ -376,19 +807,36 @@ class TicketPanel(discord.ui.View):
 
         guild = interaction.guild
 
+        if guild is None:
+            await interaction.response.send_message(
+                "❌ サーバー内でのみ使用できます。",
+                ephemeral=True
+            )
+            return
+
+        # =================================================
+        # カテゴリ取得
+        # =================================================
+
         category = None
 
-        if config["category"]:
+        if config["normal_category"]:
             category = guild.get_channel(
-                config["category"]
+                config["normal_category"]
             )
 
-        if category is None:
-
+        if not isinstance(
+            category,
+            discord.CategoryChannel
+        ):
             category = discord.utils.get(
                 guild.categories,
                 name="🎫 Tickets"
             )
+
+        # =================================================
+        # カテゴリ自動作成
+        # =================================================
 
         if category is None:
 
@@ -396,18 +844,34 @@ class TicketPanel(discord.ui.View):
                 "🎫 Tickets"
             )
 
-            config["category"] = category.id
+            config["normal_category"] = category.id
             save_config(config)
 
-        for ch in category.text_channels:
+        # =================================================
+        # 既存Ticket確認
+        # =================================================
 
-            if ch.topic == str(interaction.user.id):
+        for channel in category.text_channels:
+
+            ticket_data = get_ticket_data(channel)
+
+            if not ticket_data:
+                continue
+
+            if ticket_data.get("type") != "normal":
+                continue
+
+            if ticket_data.get("owner_id") == interaction.user.id:
 
                 await interaction.response.send_message(
-                    "❌ 既にチケットがあります。",
+                    "❌ 既に通常Ticketがあります。",
                     ephemeral=True
                 )
                 return
+
+        # =================================================
+        # Ticket番号
+        # =================================================
 
         config["ticket_number"] += 1
         save_config(config)
@@ -416,88 +880,145 @@ class TicketPanel(discord.ui.View):
             config["ticket_number"]
         ).zfill(4)
 
+        # =================================================
+        # 権限
+        # =================================================
+
         overwrites = {
-            guild.default_role: discord.PermissionOverwrite(
-                view_channel=False
-            ),
 
-            interaction.user: discord.PermissionOverwrite(
-                view_channel=True,
-                send_messages=True,
-                attach_files=True,
-                embed_links=True,
-                read_message_history=True
-            )
-        }
+            guild.default_role:
+                discord.PermissionOverwrite(
+                    view_channel=False
+                ),
 
-        # スタッフロールにも権限を付与
-        if config["mention_role"]:
-            role = guild.get_role(config["mention_role"])
-
-            if role:
-                overwrites[role] = discord.PermissionOverwrite(
+            interaction.user:
+                discord.PermissionOverwrite(
                     view_channel=True,
                     send_messages=True,
                     attach_files=True,
                     embed_links=True,
                     read_message_history=True
                 )
+        }
 
-        # Botの権限
-        bot_member = guild.get_member(self.bot.user.id)
+        # =================================================
+        # スタッフ
+        # =================================================
 
-        if bot_member:
-            overwrites[bot_member] = discord.PermissionOverwrite(
-                view_channel=True,
-                send_messages=True,
-                manage_channels=True,
-                manage_messages=True,
-                read_message_history=True
+        if config["normal_staff_role"]:
+
+            role = guild.get_role(
+                config["normal_staff_role"]
             )
 
-        ticket = await guild.create_text_channel(
+            if role:
 
-            name=f"ticket-{number}",
+                overwrites[role] = (
+                    discord.PermissionOverwrite(
+                        view_channel=True,
+                        send_messages=True,
+                        attach_files=True,
+                        embed_links=True,
+                        read_message_history=True
+                    )
+                )
 
-            category=category,
+        # =================================================
+        # Bot
+        # =================================================
 
-            overwrites=overwrites,
-
-            topic=str(interaction.user.id)
-
+        bot_member = guild.get_member(
+            self.bot.user.id
         )
+
+        if bot_member:
+
+            overwrites[bot_member] = (
+                discord.PermissionOverwrite(
+                    view_channel=True,
+                    send_messages=True,
+                    manage_channels=True,
+                    manage_messages=True,
+                    read_message_history=True
+                )
+            )
+
+        # =================================================
+        # Topic
+        # =================================================
+
+        topic = json.dumps(
+            {
+                "type": "normal",
+                "owner_id": interaction.user.id
+            },
+            ensure_ascii=False
+        )
+
+        # =================================================
+        # 作成
+        # =================================================
+
+        try:
+
+            ticket = await guild.create_text_channel(
+                name=f"ticket-{number}",
+                category=category,
+                overwrites=overwrites,
+                topic=topic
+            )
+
+        except discord.Forbidden:
+
+            await interaction.response.send_message(
+                "❌ Botにチャンネル作成権限がありません。",
+                ephemeral=True
+            )
+            return
+
+        except discord.HTTPException:
+
+            await interaction.response.send_message(
+                "❌ Ticketの作成に失敗しました。",
+                ephemeral=True
+            )
+            return
+
+        # =================================================
+        # Embed
+        # =================================================
 
         embed = discord.Embed(
             title=f"🎫 Ticket #{number}",
             description=(
                 f"{interaction.user.mention}\n\n"
-                "終了時は下のボタンから閉じてください。"
+                f"{config['first_message']}\n\n"
+                "終了するときは下のボタンを押してください。"
             ),
             color=discord.Color.blurple(),
             timestamp=discord.utils.utcnow()
         )
 
         embed.add_field(
-            name="作成者",
+            name="👤 作成者",
             value=interaction.user.mention,
             inline=True
         )
 
         embed.add_field(
-            name="チケット番号",
+            name="🎫 Ticket番号",
             value=f"#{number}",
             inline=True
         )
 
-        embed.set_footer(
-            text=f"User ID : {interaction.user.id}"
-        )
-
-
         content = config["first_message"]
 
-        if config["mention_role"]:
-            content = f"<@&{config['mention_role']}>\n{config['first_message']}"
+        if config["normal_staff_role"]:
+
+            content = (
+                f"<@&{config['normal_staff_role']}>\n"
+                f"{config['first_message']}"
+            )
 
         await ticket.send(
             content=content,
@@ -505,10 +1026,14 @@ class TicketPanel(discord.ui.View):
             view=CloseView()
         )
 
-        if config["log_channel"]:
+        # =================================================
+        # ログ
+        # =================================================
+
+        if config["normal_log_channel"]:
 
             log = guild.get_channel(
-                config["log_channel"]
+                config["normal_log_channel"]
             )
 
             if log:
@@ -520,13 +1045,13 @@ class TicketPanel(discord.ui.View):
                 )
 
                 log_embed.add_field(
-                    name="チケット",
+                    name="🎫 チケット",
                     value=ticket.mention,
                     inline=False
                 )
 
                 log_embed.add_field(
-                    name="作成者",
+                    name="👤 作成者",
                     value=interaction.user.mention,
                     inline=False
                 )
@@ -536,19 +1061,48 @@ class TicketPanel(discord.ui.View):
                 )
 
         await interaction.response.send_message(
-
             f"✅ {ticket.mention} を作成しました。",
-
             ephemeral=True
+        )
 
+    # =====================================================
+    # 販売Ticket
+    # =====================================================
+
+    @discord.ui.button(
+        label="🛒 販売Ticket",
+        style=discord.ButtonStyle.blurple,
+        custom_id="ticket_create_sale"
+    )
+    async def create_sale(
+        self,
+        interaction: discord.Interaction,
+        button: discord.ui.Button
+    ):
+
+        await interaction.response.send_message(
+            "🛒 販売Ticketはショップの商品購入時に自動作成されます。\n\n"
+            "商品を購入すると、購入者・販売者・商品・価格・注文IDが設定された販売Ticketが自動で作成されます。",
+            ephemeral=True
         )
 
 
+# =========================================================
+# Ticket Cog
+# =========================================================
+
 class Ticket(commands.Cog):
 
-    def __init__(self, bot: commands.Bot):
+    def __init__(
+        self,
+        bot: commands.Bot
+    ):
 
         self.bot = bot
+
+        # ================================================
+        # 永続View
+        # ================================================
 
         bot.add_view(
             TicketPanel(bot)
@@ -558,41 +1112,125 @@ class Ticket(commands.Cog):
             CloseView()
         )
 
+    # =====================================================
+    # /ticket
+    # =====================================================
+
     @app_commands.command(
         name="ticket",
-        description="チケットパネルを設置します"
+        description="Ticketパネルを設置します"
     )
-    @app_commands.default_permissions(administrator=True)
+    @app_commands.default_permissions(
+        administrator=True
+    )
     async def ticket(
         self,
         interaction: discord.Interaction,
+
         title: str,
         description: str,
+
         category: discord.CategoryChannel,
         log_channel: discord.TextChannel,
+
         staff_role: discord.Role = None,
+
         first_message: str = "スタッフがお伺いします。",
-        image: discord.Attachment = None
+
+        image: discord.Attachment = None,
+
+        # =================================================
+        # 販売Ticket設定
+        # =================================================
+
+        sale_category: discord.CategoryChannel = None,
+
+        sale_log_channel: discord.TextChannel = None,
+
+        sale_staff_role: discord.Role = None
     ):
 
-        config["category"] = category.id
-        config["log_channel"] = log_channel.id
+        # =================================================
+        # 通常Ticket設定
+        # =================================================
 
-        config["panel_title"] = title
-        config["panel_description"] = description
-        config["first_message"] = first_message
+        config["normal_category"] = category.id
+
+        config["normal_log_channel"] = (
+            log_channel.id
+        )
 
         if staff_role:
-            config["mention_role"] = staff_role.id
+
+            config["normal_staff_role"] = (
+                staff_role.id
+            )
+
         else:
-            config["mention_role"] = None
+
+            config["normal_staff_role"] = None
+
+        # =================================================
+        # 販売Ticket設定
+        # =================================================
+
+        if sale_category:
+
+            config["sale_category"] = (
+                sale_category.id
+            )
+
+        else:
+
+            config["sale_category"] = None
+
+        if sale_log_channel:
+
+            config["sale_log_channel"] = (
+                sale_log_channel.id
+            )
+
+        else:
+
+            config["sale_log_channel"] = None
+
+        if sale_staff_role:
+
+            config["sale_staff_role"] = (
+                sale_staff_role.id
+            )
+
+        else:
+
+            config["sale_staff_role"] = None
+
+        # =================================================
+        # パネル設定
+        # =================================================
+
+        config["panel_title"] = title
+
+        config["panel_description"] = description
+
+        config["first_message"] = first_message
 
         if image:
+
             config["panel_image"] = image.url
+
         else:
+
             config["panel_image"] = None
 
+        # =================================================
+        # 保存
+        # =================================================
+
         save_config(config)
+
+        # =================================================
+        # パネルEmbed
+        # =================================================
 
         embed = create_panel_embed()
 
@@ -601,62 +1239,114 @@ class Ticket(commands.Cog):
             view=TicketPanel(self.bot)
         )
 
+        # =================================================
+        # 完了メッセージ
+        # =================================================
+
+        sale_status = (
+            "✅ 設定済み"
+            if sale_log_channel
+            else "⚪ 未設定"
+        )
+
         await interaction.response.send_message(
-            "✅ チケットパネルを設置しました。",
+            (
+                "✅ チケットパネルを設置しました。\n\n"
+                f"🎫 通常Ticketログ：{log_channel.mention}\n"
+                f"🛒 販売Ticketログ：{sale_status}"
+            ),
             ephemeral=True
         )
+
+    # =====================================================
+    # /ticketadd
+    # =====================================================
 
     @app_commands.command(
         name="ticketadd",
         description="チケットにユーザーを追加します"
     )
-    @app_commands.default_permissions(manage_channels=True)
+    @app_commands.default_permissions(
+        manage_channels=True
+    )
     async def ticketadd(
         self,
         interaction: discord.Interaction,
         member: discord.Member
     ):
 
-        try:
-            int(interaction.channel.topic)
-        except (TypeError, ValueError):
+        # =================================================
+        # Ticket確認
+        # =================================================
+
+        ticket_data = get_ticket_data(
+            interaction.channel
+        )
+
+        if not ticket_data:
+
             await interaction.response.send_message(
-                "❌ このコマンドはチケットでのみ使用できます。",
+                "❌ このコマンドはTicketでのみ使用できます。",
                 ephemeral=True
             )
+
             return
+
+        # =================================================
+        # 権限追加
+        # =================================================
 
         await interaction.channel.set_permissions(
             member,
             view_channel=True,
             send_messages=True,
             attach_files=True,
+            embed_links=True,
             read_message_history=True
         )
 
         await interaction.response.send_message(
-            f"✅ {member.mention} を追加しました。",
+            f"✅ {member.mention} をTicketに追加しました。",
             ephemeral=True
         )
+
+    # =====================================================
+    # /ticketremove
+    # =====================================================
+
     @app_commands.command(
         name="ticketremove",
         description="チケットからユーザーを削除します"
     )
-    @app_commands.default_permissions(manage_channels=True)
+    @app_commands.default_permissions(
+        manage_channels=True
+    )
     async def ticketremove(
         self,
         interaction: discord.Interaction,
         member: discord.Member
     ):
 
-        try:
-            int(interaction.channel.topic)
-        except (TypeError, ValueError):
+        # =================================================
+        # Ticket確認
+        # =================================================
+
+        ticket_data = get_ticket_data(
+            interaction.channel
+        )
+
+        if not ticket_data:
+
             await interaction.response.send_message(
-                "❌ このコマンドはチケットでのみ使用できます。",
+                "❌ このコマンドはTicketでのみ使用できます。",
                 ephemeral=True
             )
+
             return
+
+        # =================================================
+        # 権限削除
+        # =================================================
 
         await interaction.channel.set_permissions(
             member,
@@ -664,63 +1354,127 @@ class Ticket(commands.Cog):
         )
 
         await interaction.response.send_message(
-            f"✅ {member.mention} を削除しました。",
+            f"✅ {member.mention} をTicketから削除しました。",
             ephemeral=True
         )
+
+    # =====================================================
+    # /ticketrename
+    # =====================================================
 
     @app_commands.command(
         name="ticketrename",
         description="チケット名を変更します"
     )
-    @app_commands.default_permissions(manage_channels=True)
+    @app_commands.default_permissions(
+        manage_channels=True
+    )
     async def ticketrename(
         self,
         interaction: discord.Interaction,
         name: str
     ):
 
-        try:
-            int(interaction.channel.topic)
-        except (TypeError, ValueError):
+        # =================================================
+        # Ticket確認
+        # =================================================
+
+        ticket_data = get_ticket_data(
+            interaction.channel
+        )
+
+        if not ticket_data:
+
             await interaction.response.send_message(
-                "❌ このコマンドはチケットでのみ使用できます。",
+                "❌ このコマンドはTicketでのみ使用できます。",
                 ephemeral=True
             )
+
             return
 
-        await interaction.channel.edit(
-            name=name
-        )
+        # =================================================
+        # 名前変更
+        # =================================================
+
+        try:
+
+            await interaction.channel.edit(
+                name=name
+            )
+
+        except discord.Forbidden:
+
+            await interaction.response.send_message(
+                "❌ Botにチャンネル名を変更する権限がありません。",
+                ephemeral=True
+            )
+
+            return
+
+        except discord.HTTPException:
+
+            await interaction.response.send_message(
+                "❌ チャンネル名の変更に失敗しました。",
+                ephemeral=True
+            )
+
+            return
 
         await interaction.response.send_message(
             f"✅ チケット名を **{name}** に変更しました。",
             ephemeral=True
         )
 
+    # =====================================================
+    # /ticketclaim
+    # =====================================================
+
     @app_commands.command(
         name="ticketclaim",
         description="チケットを担当します"
     )
-    @app_commands.default_permissions(manage_channels=True)
+    @app_commands.default_permissions(
+        manage_channels=True
+    )
     async def ticketclaim(
         self,
         interaction: discord.Interaction
     ):
 
-        try:
-            int(interaction.channel.topic)
-        except (TypeError, ValueError):
+        # =================================================
+        # Ticket確認
+        # =================================================
+
+        ticket_data = get_ticket_data(
+            interaction.channel
+        )
+
+        if not ticket_data:
+
             await interaction.response.send_message(
-                "❌ このコマンドはチケットでのみ使用できます。",
+                "❌ このコマンドはTicketでのみ使用できます。",
                 ephemeral=True
             )
+
             return
+
+        # =================================================
+        # 担当Embed
+        # =================================================
 
         embed = discord.Embed(
             title="👤 チケット担当",
-            description=f"{interaction.user.mention} が担当しました。",
+            description=(
+                f"{interaction.user.mention} が担当しました。"
+            ),
             color=discord.Color.green(),
             timestamp=discord.utils.utcnow()
+        )
+
+        embed.add_field(
+            name="担当者",
+            value=interaction.user.mention,
+            inline=True
         )
 
         await interaction.channel.send(
@@ -728,12 +1482,325 @@ class Ticket(commands.Cog):
         )
 
         await interaction.response.send_message(
-            "✅ 担当しました。",
+            "✅ このTicketを担当しました。",
             ephemeral=True
         )
 
 
-async def setup(bot: commands.Bot):
+
+# =========================================================
+# 販売Ticket作成
+# =========================================================
+
+async def create_sale_ticket(
+    bot,
+    guild,
+    buyer,
+    seller,
+    order_id,
+    product_name,
+    price
+):
+
+    # =====================================================
+    # カテゴリ
+    # =====================================================
+
+    category = None
+
+    if config["sale_category"]:
+
+        category = guild.get_channel(
+            config["sale_category"]
+        )
+
+    # =====================================================
+    # カテゴリが存在しない場合
+    # =====================================================
+
+    if not isinstance(
+        category,
+        discord.CategoryChannel
+    ):
+
+        category = discord.utils.get(
+            guild.categories,
+            name="🛒 Sales"
+        )
+
+    # =====================================================
+    # カテゴリ自動作成
+    # =====================================================
+
+    if category is None:
+
+        category = await guild.create_category(
+            "🛒 Sales"
+        )
+
+        config["sale_category"] = (
+            category.id
+        )
+
+        save_config(
+            config
+        )
+
+    # =====================================================
+    # Ticket番号
+    # =====================================================
+
+    config["ticket_number"] += 1
+
+    save_config(
+        config
+    )
+
+    number = str(
+        config["ticket_number"]
+    ).zfill(4)
+
+    # =====================================================
+    # 権限
+    # =====================================================
+
+    overwrites = {
+
+        guild.default_role:
+            discord.PermissionOverwrite(
+                view_channel=False
+            ),
+
+        buyer:
+            discord.PermissionOverwrite(
+                view_channel=True,
+                send_messages=True,
+                attach_files=True,
+                embed_links=True,
+                read_message_history=True
+            ),
+
+        seller:
+            discord.PermissionOverwrite(
+                view_channel=True,
+                send_messages=True,
+                attach_files=True,
+                embed_links=True,
+                read_message_history=True
+            )
+    }
+
+    # =====================================================
+    # 販売スタッフ
+    # =====================================================
+
+    if config["sale_staff_role"]:
+
+        role = guild.get_role(
+            config["sale_staff_role"]
+        )
+
+        if role:
+
+            overwrites[role] = (
+                discord.PermissionOverwrite(
+                    view_channel=True,
+                    send_messages=True,
+                    attach_files=True,
+                    embed_links=True,
+                    read_message_history=True
+                )
+            )
+
+    # =====================================================
+    # Bot
+    # =====================================================
+
+    bot_member = guild.get_member(
+        bot.user.id
+    )
+
+    if bot_member:
+
+        overwrites[bot_member] = (
+            discord.PermissionOverwrite(
+                view_channel=True,
+                send_messages=True,
+                attach_files=True,
+                embed_links=True,
+                read_message_history=True,
+                manage_channels=True,
+                manage_messages=True
+            )
+        )
+
+    # =====================================================
+    # Topic
+    # =====================================================
+
+    topic = json.dumps(
+        {
+            "type": "sale",
+            "buyer_id": buyer.id,
+            "seller_id": seller.id,
+            "order_id": str(order_id)
+        },
+        ensure_ascii=False
+    )
+
+    # =====================================================
+    # Ticket作成
+    # =====================================================
+
+    try:
+
+        ticket = await guild.create_text_channel(
+
+            name=f"sale-{number}",
+
+            category=category,
+
+            overwrites=overwrites,
+
+            topic=topic
+        )
+
+    except discord.Forbidden:
+
+        return None
+
+    except discord.HTTPException:
+
+        return None
+
+    # =====================================================
+    # Embed
+    # =====================================================
+
+    embed = discord.Embed(
+        title=f"🛒 販売Ticket #{number}",
+        description=(
+            "商品購入用のTicketです。\n\n"
+            f"購入者：{buyer.mention}\n"
+            f"販売者：{seller.mention}\n\n"
+            "このTicket内で購入者と販売者が"
+            "やり取りできます。\n\n"
+            "終了するときは下のボタンを押してください。"
+        ),
+        color=discord.Color.green(),
+        timestamp=discord.utils.utcnow()
+    )
+
+    embed.add_field(
+        name="📦 商品",
+        value=str(product_name),
+        inline=False
+    )
+
+    embed.add_field(
+        name="💰 価格",
+        value=f"¥{price:,}",
+        inline=True
+    )
+
+    embed.add_field(
+        name="🆔 注文ID",
+        value=f"`{order_id}`",
+        inline=True
+    )
+
+    embed.add_field(
+        name="👤 購入者",
+        value=buyer.mention,
+        inline=True
+    )
+
+    embed.add_field(
+        name="🏪 販売者",
+        value=seller.mention,
+        inline=True
+    )
+
+    # =====================================================
+    # メッセージ
+    # =====================================================
+
+    await ticket.send(
+        content=(
+            f"{buyer.mention} {seller.mention}"
+        ),
+        embed=embed,
+        view=CloseView()
+    )
+
+    # =====================================================
+    # ログ
+    # =====================================================
+
+    if config["sale_log_channel"]:
+
+        log = guild.get_channel(
+            config["sale_log_channel"]
+        )
+
+        if log:
+
+            log_embed = discord.Embed(
+                title="🛒 販売Ticket Created",
+                color=discord.Color.green(),
+                timestamp=discord.utils.utcnow()
+            )
+
+            log_embed.add_field(
+                name="Ticket",
+                value=ticket.mention,
+                inline=False
+            )
+
+            log_embed.add_field(
+                name="購入者",
+                value=buyer.mention,
+                inline=True
+            )
+
+            log_embed.add_field(
+                name="販売者",
+                value=seller.mention,
+                inline=True
+            )
+
+            log_embed.add_field(
+                name="商品",
+                value=str(product_name),
+                inline=False
+            )
+
+            log_embed.add_field(
+                name="価格",
+                value=f"¥{price:,}",
+                inline=True
+            )
+
+            log_embed.add_field(
+                name="注文ID",
+                value=f"`{order_id}`",
+                inline=True
+            )
+
+            await log.send(
+                embed=log_embed
+            )
+
+    return ticket
+
+
+# =========================================================
+# Cog Setup
+# =========================================================
+
+async def setup(
+    bot: commands.Bot
+):
 
     await bot.add_cog(
         Ticket(bot)
