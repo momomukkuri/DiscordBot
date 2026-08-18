@@ -25,8 +25,20 @@ class Events(commands.Cog):
         self.role_delete_count = {}
         self.antiraid = {}
         self.spam_count = {}
-        self.download_folder = "downloads"
         self.xsave_file = "xsave.json"
+
+        # Bot本体のフォルダ
+        self.base_dir = os.path.dirname(
+            os.path.dirname(
+                os.path.abspath(__file__)
+            )
+        )
+
+        # /home/container/DiscordBot/downloads
+        self.download_folder = os.path.join(
+            self.base_dir,
+            "downloads"
+        )
 
         os.makedirs(
             self.download_folder,
