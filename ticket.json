@@ -1,16 +1,1 @@
-{
-    "category": 1529093669746114712,
-    "log_channel": 1529094944684507209,
-    "ticket_number": 24,
-    "panel_title": "Ticket",
-    "panel_description": "Ticket",
-    "panel_image": null,
-    "mention_role": null,
-    "first_message": "スタッフがお伺いします。",
-    "normal_category": 1529085368173985915,
-    "normal_log_channel": 1537839757021937684,
-    "normal_staff_role": null,
-    "sale_category": 1538552191395299368,
-    "sale_log_channel": 1537839757021937684,
-    "sale_staff_role": null
-}
+{}
