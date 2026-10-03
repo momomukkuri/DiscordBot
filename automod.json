@@ -1,1 +1,7 @@
-{}
+{
+    "1498303207968084120": {
+        "spam": true,
+        "ngword": true,
+        "mention": true
+    }
+}

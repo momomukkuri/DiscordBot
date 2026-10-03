@@ -1,0 +1,31 @@
+{
+    "guild_id": {
+        "enabled": true,
+        "words": [],
+        "action": "warn",
+        "timeout_minutes": 10
+    },
+    "1510631337051164702": {
+        "enabled": true,
+        "words": [
+            "うおｗ"
+        ],
+        "action": "timeout",
+        "timeout_minutes": 10
+    },
+    "1510626391396319395": {
+        "enabled": true,
+        "words": [
+            "うお",
+            "うおｗ"
+        ],
+        "action": "none",
+        "timeout_minutes": 10
+    },
+    "1498303207968084120": {
+        "enabled": true,
+        "words": [],
+        "action": "none",
+        "timeout_minutes": 10
+    }
+}

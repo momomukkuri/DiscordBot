@@ -30,7 +30,7 @@ if not TOKEN:
 # GUILD_ID = 123456789012345678
 # =========================================================
 
-GUILD_ID = 1538575152114303036
+GUILD_ID = 1510626391396319395
 
 
 # =========================================================
@@ -215,14 +215,11 @@ async def load_extensions():
     print("✅ cogs.status 読み込み完了")
 
     await bot.load_extension(
-        "cogs.shop"
+        "cogs.cold_sarcasm"
     )
-    print("✅ cogs.shop 読み込み完了")
+    print("✅ cogs.cold_sarcasm 読み込み完了")
 
-    await bot.load_extension(
-        "cogs.paypay"
-    )
-    print("✅ cogs.paypay 読み込み完了")
+
 
     print("================================")
     print("Cog読み込み完了")

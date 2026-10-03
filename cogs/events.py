@@ -10,6 +10,12 @@ import re
 import yt_dlp
 
 
+# =========================================================
+# 冷笑設定
+# =========================================================
+
+COLDWORDS_FILE = "coldwords.json"
+
 
 class Events(commands.Cog):
 
@@ -20,12 +26,13 @@ class Events(commands.Cog):
         self.welcome_file = "welcome.json"
         self.ngword_file = "ngwords.json"
         self.automod_file = "automod.json"
+        self.xsave_file = "xsave.json"
+
         self.ban_count = {}
         self.channel_delete_count = {}
         self.role_delete_count = {}
         self.antiraid = {}
         self.spam_count = {}
-        self.xsave_file = "xsave.json"
 
         # Bot本体のフォルダ
         self.base_dir = os.path.dirname(
@@ -45,65 +52,262 @@ class Events(commands.Cog):
             exist_ok=True
         )
 
+    # =========================================================
+    # ログ送信
+    # =========================================================
+
     async def send_log(
         self,
         guild,
         embed,
         log_type="joinleave"
     ):
+
         print("send_log が呼ばれた")
         print("log_type =", log_type)
+
         # ON/OFF確認
         if os.path.exists("logtoggle.json"):
-            with open("logtoggle.json", "r", encoding="utf-8") as f:
+
+            with open(
+                "logtoggle.json",
+                "r",
+                encoding="utf-8"
+            ) as f:
+
                 toggle = json.load(f)
 
-            if not toggle.get(str(guild.id), {}).get(log_type, False):
+            if not toggle.get(
+                str(guild.id),
+                {}
+            ).get(
+                log_type,
+                False
+            ):
+
                 return
 
         # ログチャンネル取得
         if not os.path.exists("logs.json"):
             return
 
-        with open("logs.json", "r", encoding="utf-8") as f:
+        with open(
+            "logs.json",
+            "r",
+            encoding="utf-8"
+        ) as f:
+
             data = json.load(f)
 
-        guild_data = data.get(str(guild.id), {})
-        channel_id = guild_data.get(log_type)
+        guild_data = data.get(
+            str(guild.id),
+            {}
+        )
+
+        channel_id = guild_data.get(
+            log_type
+        )
 
         if not channel_id:
             return
 
-        channel = guild.get_channel(channel_id)
+        channel = guild.get_channel(
+            channel_id
+        )
 
         if channel:
-            await channel.send(embed=embed)
-        
 
-    # =========================
+            await channel.send(
+                embed=embed
+            )
+
+    # =========================================================
     # NGワード読み込み
-    # =========================
+    # =========================================================
+
     def load_ngwords(self):
 
-        if not os.path.exists(self.ngword_file):
+        if not os.path.exists(
+            self.ngword_file
+        ):
+
             return {}
 
-        with open(self.ngword_file, "r", encoding="utf-8") as f:
+        with open(
+            self.ngword_file,
+            "r",
+            encoding="utf-8"
+        ) as f:
+
             return json.load(f)
+
+    # =========================================================
+    # AutoMod設定読み込み
+    # =========================================================
+
+    def load_automod(self):
+
+        if not os.path.exists(
+            self.automod_file
+        ):
+
+            return {}
+
+        with open(
+            self.automod_file,
+            "r",
+            encoding="utf-8"
+        ) as f:
+
+            return json.load(f)
+
+    # =========================================================
+    # X動画保存設定読み込み
+    # =========================================================
+
+    def load_xsave(self):
+
+        if not os.path.exists(
+            self.xsave_file
+        ):
+
+            return {}
+
+        with open(
+            self.xsave_file,
+            "r",
+            encoding="utf-8"
+        ) as f:
+
+            return json.load(f)
+
+    # =========================================================
+    # 冷笑設定読み込み
+    # =========================================================
+
+    def load_coldwords(self):
+
+        if not os.path.exists(
+            COLDWORDS_FILE
+        ):
+
+            return {}
+
+        try:
+
+            with open(
+                COLDWORDS_FILE,
+                "r",
+                encoding="utf-8"
+            ) as f:
+
+                return json.load(f)
+
+        except (
+            json.JSONDecodeError,
+            OSError
+        ):
+
+            return {}
+
+    # =========================================================
+    # 冷笑判定
+    # =========================================================
+
+    def check_cold_sarcasm_score(
+        self,
+        content,
+        words
+    ):
+
+        if not content:
+            return False
+
+        content_lower = content.lower()
+
+        # 冷笑用語
+        for word in words:
+
+            if not isinstance(
+                word,
+                str
+            ):
+
+                continue
+
+            word = word.strip()
+
+            if not word:
+                continue
+
+            if word.lower() not in content_lower:
+                continue
+
+            # -----------------------------------------
+            # 笑い表現
+            # -----------------------------------------
+
+            if re.search(
+                r"[ｗw笑]|草",
+                content,
+                re.IGNORECASE
+            ):
+
+                return True
+
+            # -----------------------------------------
+            # 冷笑フレーズ
+            # -----------------------------------------
+
+            phrases = [
+                "はいはい",
+                "へぇ",
+                "へえ",
+                "へー",
+                "それ本気で言ってる",
+                "それ本気で言ってんの",
+                "そうなんだ笑",
+                "そうなんだｗ",
+                "そうなんだw",
+            ]
+
+            for phrase in phrases:
+
+                if phrase.lower() in content_lower:
+
+                    return True
+
+        return False
+
     
 
-    # =========================
-    # NGワード検知
-    # =========================
+    # =========================================================
+    # on_message
+    # =========================================================
+
     @commands.Cog.listener()
-    async def on_message(self, message):
+    async def on_message(
+        self,
+        message
+    ):
 
         if message.author.bot:
             return
-        
-        # =========================
+
+        if message.guild is None:
+            return
+
+        # =====================================================
+        # 冷笑感知
+        # =====================================================
+
+        await self.check_cold_sarcasm(
+            message
+        )
+
+        # =====================================================
         # X動画自動保存
-        # =========================
+        # =====================================================
 
         match = re.search(
             r"https?://(?:x\.com|twitter\.com)/[^\s]+/status/\d+",
@@ -111,29 +315,64 @@ class Events(commands.Cog):
         )
 
         if match:
+
             print("Xリンク検知")
+
             url = match.group()
 
-            guild_id = str(message.guild.id)
+            guild_id = str(
+                message.guild.id
+            )
 
             # X動画保存設定
-            save_enabled = self.load_xsave().get(guild_id, {}).get("enabled", False)
+            save_enabled = (
+                self.load_xsave()
+                .get(
+                    guild_id,
+                    {}
+                )
+                .get(
+                    "enabled",
+                    False
+                )
+            )
 
             # X埋め込み設定
             embed_enabled = False
 
-            if os.path.exists("xembed.json"):
-                with open("xembed.json", "r", encoding="utf-8") as f:
+            if os.path.exists(
+                "xembed.json"
+            ):
+
+                with open(
+                    "xembed.json",
+                    "r",
+                    encoding="utf-8"
+                ) as f:
+
                     embed_data = json.load(f)
 
-                embed_enabled = embed_data.get(guild_id, {}).get("enabled", False)
+                embed_enabled = (
+                    embed_data
+                    .get(
+                        guild_id,
+                        {}
+                    )
+                    .get(
+                        "enabled",
+                        False
+                    )
+                )
 
-            # =========================
+            # =================================================
             # 動画保存
-            # =========================
+            # =================================================
+
             if save_enabled:
 
-                downloading = await message.reply("📥 動画をダウンロード中...")
+                downloading = await message.reply(
+                    "📥 動画をダウンロード中..."
+                )
 
                 filename = None
 
@@ -149,19 +388,25 @@ class Events(commands.Cog):
                         "noplaylist": True,
                     }
 
-                    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                    with yt_dlp.YoutubeDL(
+                        ydl_opts
+                    ) as ydl:
 
                         info = ydl.extract_info(
                             url,
                             download=True
                         )
 
-                        filename = ydl.prepare_filename(info)
+                        filename = ydl.prepare_filename(
+                            info
+                        )
 
                     await downloading.delete()
 
                     await message.reply(
-                        file=discord.File(filename)
+                        file=discord.File(
+                            filename
+                        )
                     )
 
                     await message.delete()
@@ -169,51 +414,84 @@ class Events(commands.Cog):
                 except Exception as e:
 
                     if downloading:
+
                         await downloading.edit(
-                            content=f"❌ ダウンロード失敗\n```{e}```"
+                            content=(
+                                f"❌ ダウンロード失敗\n"
+                                f"```{e}```"
+                            )
                         )
 
                     print(e)
 
                 finally:
 
-                    if filename and os.path.exists(filename):
+                    if (
+                        filename
+                        and os.path.exists(filename)
+                    ):
+
                         os.remove(filename)
 
-            # =========================
+            # =================================================
             # X埋め込み
-            # =========================
+            # =================================================
+
             if embed_enabled:
 
                 fx_url = (
-                    url.replace(
+                    url
+                    .replace(
                         "https://x.com/",
                         "https://fxtwitter.com/"
-                    ).replace(
+                    )
+                    .replace(
                         "https://twitter.com/",
                         "https://fxtwitter.com/"
                     )
                 )
 
-                await message.channel.send(fx_url)
+                await message.channel.send(
+                    fx_url
+                )
 
-
-
+        # =====================================================
         # スパム検知
-        await self.check_spam(message)
+        # =====================================================
 
+        await self.check_spam(
+            message
+        )
+
+        # =====================================================
         # メンションスパム検知
-        await self.check_mention_spam(message)
+        # =====================================================
+
+        await self.check_mention_spam(
+            message
+        )
 
         # 管理者は無視
         if message.author.guild_permissions.manage_guild:
             return
 
+        # =====================================================
         # 招待リンクブロック
-        automod = self.load_automod()
-        guild_id = str(message.guild.id)
+        # =====================================================
 
-        if automod.get(guild_id, {}).get("invite", False):
+        automod = self.load_automod()
+
+        guild_id = str(
+            message.guild.id
+        )
+
+        if automod.get(
+            guild_id,
+            {}
+        ).get(
+            "invite",
+            False
+        ):
 
             if re.search(
                 r"(discord\.gg/|discord\.com/invite/)",
@@ -222,6 +500,7 @@ class Events(commands.Cog):
             ):
 
                 try:
+
                     await message.delete()
 
                     embed = discord.Embed(
@@ -255,18 +534,32 @@ class Events(commands.Cog):
                     )
 
                 except discord.Forbidden:
+
                     pass
 
                 return
+
+        # =====================================================
+        # NGワード
+        # =====================================================
 
         data = self.load_ngwords()
 
         automod = self.load_automod()
 
-        guild_id = str(message.guild.id)
+        guild_id = str(
+            message.guild.id
+        )
 
-        # NGワード機能がOFFなら処理しない
-        if not automod.get(guild_id, {}).get("ngword", False):
+        # NGワードOFF
+        if not automod.get(
+            guild_id,
+            {}
+        ).get(
+            "ngword",
+            False
+        ):
+
             return
 
         if guild_id not in data:
@@ -277,6 +570,7 @@ class Events(commands.Cog):
             if word.lower() in message.content.lower():
 
                 try:
+
                     await message.delete()
 
                     embed = discord.Embed(
@@ -310,83 +604,111 @@ class Events(commands.Cog):
                     )
 
                 except discord.Forbidden:
+
                     pass
 
                 break
 
-    # =========================
+    # =========================================================
     # NGワード管理
-    # =========================
+    # =========================================================
+
     @app_commands.command(
         name="ngword",
         description="禁止ワードを管理します"
     )
-    @app_commands.checks.has_permissions(manage_guild=True)
+    @app_commands.checks.has_permissions(
+        manage_guild=True
+    )
     async def ngword(
         self,
         interaction: discord.Interaction,
-        action: Literal["add", "remove", "list"],
+        action: Literal[
+            "add",
+            "remove",
+            "list"
+        ],
         word: Optional[str] = None
     ):
 
         data = self.load_ngwords()
 
-        guild_id = str(interaction.guild.id)
+        guild_id = str(
+            interaction.guild.id
+        )
 
         if guild_id not in data:
+
             data[guild_id] = []
 
         # 追加
         if action == "add":
 
             if not word:
+
                 await interaction.response.send_message(
                     "追加する単語を入力してください。",
                     ephemeral=True
                 )
+
                 return
 
             if word in data[guild_id]:
+
                 await interaction.response.send_message(
                     "その禁止ワードは既に登録されています。",
                     ephemeral=True
                 )
+
                 return
 
-            data[guild_id].append(word)
+            data[guild_id].append(
+                word
+            )
 
         # 削除
         elif action == "remove":
 
             if not word:
+
                 await interaction.response.send_message(
                     "削除する単語を入力してください。",
                     ephemeral=True
                 )
+
                 return
 
             if word not in data[guild_id]:
+
                 await interaction.response.send_message(
                     "その禁止ワードは登録されていません。",
                     ephemeral=True
                 )
+
                 return
 
-            data[guild_id].remove(word)
+            data[guild_id].remove(
+                word
+            )
 
         # 一覧
         elif action == "list":
 
             if not data[guild_id]:
+
                 await interaction.response.send_message(
                     "禁止ワードは登録されていません。",
                     ephemeral=True
                 )
+
                 return
 
             embed = discord.Embed(
                 title="🚫 禁止ワード一覧",
-                description="\n".join(f"• {w}" for w in data[guild_id]),
+                description="\n".join(
+                    f"• {w}"
+                    for w in data[guild_id]
+                ),
                 color=discord.Color.red()
             )
 
@@ -394,92 +716,111 @@ class Events(commands.Cog):
                 embed=embed,
                 ephemeral=True
             )
+
             return
 
         else:
+
             await interaction.response.send_message(
                 "actionは add / remove / list のどれかです。",
                 ephemeral=True
             )
+
             return
 
-        with open(self.ngword_file, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=4)
+        with open(
+            self.ngword_file,
+            "w",
+            encoding="utf-8"
+        ) as f:
+
+            json.dump(
+                data,
+                f,
+                ensure_ascii=False,
+                indent=4
+            )
 
         await interaction.response.send_message(
             "更新しました。",
             ephemeral=True
         )
 
-    # =========================
-    # AutoMod設定読み込み
-    # =========================
-    def load_automod(self):
-
-        if not os.path.exists(self.automod_file):
-            return {}
-
-        with open(self.automod_file, "r", encoding="utf-8") as f:
-            return json.load(f)
-    # =========================
-    # X動画保存設定読み込み
-    # =========================
-    def load_xsave(self):
-
-        if not os.path.exists(self.xsave_file):
-            return {}
-
-        with open(self.xsave_file, "r", encoding="utf-8") as f:
-            return json.load(f)
-    
-    # =========================
+    # =========================================================
     # X動画保存設定
-    # =========================
+    # =========================================================
+
     @app_commands.command(
         name="xsave",
         description="X動画の保存設定"
     )
-    @app_commands.checks.has_permissions(manage_guild=True)
+    @app_commands.checks.has_permissions(
+        manage_guild=True
+    )
     async def xsave(
         self,
         interaction: discord.Interaction,
-        state: Literal["on", "off"]
+        state: Literal[
+            "on",
+            "off"
+        ]
     ):
 
         data = self.load_xsave()
 
-        guild_id = str(interaction.guild.id)
+        guild_id = str(
+            interaction.guild.id
+        )
 
         if guild_id not in data:
+
             data[guild_id] = {}
 
-        data = self.load_xsave()
+        data[guild_id]["enabled"] = (
+            state == "on"
+        )
 
-        guild_id = str(interaction.guild.id)
+        with open(
+            self.xsave_file,
+            "w",
+            encoding="utf-8"
+        ) as f:
 
-        if guild_id not in data:
-            data[guild_id] = {}
-
-        data[guild_id]["enabled"] = (state == "on")
-
-        with open(self.xsave_file, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=4)
+            json.dump(
+                data,
+                f,
+                ensure_ascii=False,
+                indent=4
+            )
 
         await interaction.response.send_message(
             f"✅ X動画保存を **{state.upper()}** にしました。",
             ephemeral=True
         )
-    
-    # =========================
+
+    # =========================================================
     # スパム検知
-    # =========================
-    async def check_spam(self, message):
+    # =========================================================
+
+    async def check_spam(
+        self,
+        message
+    ):
 
         automod = self.load_automod()
 
-        guild_id = str(message.guild.id)
+        guild_id = str(
+            message.guild.id
+        )
 
-        if not automod.get(guild_id, {}).get("spam", False):
+        if not automod.get(
+            guild_id,
+            {}
+        ).get(
+            "spam",
+            False
+        ):
+
             return
 
         now = datetime.datetime.now().timestamp()
@@ -487,27 +828,35 @@ class Events(commands.Cog):
         user_id = message.author.id
 
         if user_id not in self.spam_count:
+
             self.spam_count[user_id] = []
 
-        self.spam_count[user_id].append(now)
+        self.spam_count[user_id].append(
+            now
+        )
 
-        # 5秒以内のメッセージだけ残す
         self.spam_count[user_id] = [
-            t for t in self.spam_count[user_id]
+            t
+            for t in self.spam_count[user_id]
             if now - t < 5
         ]
 
-        # 5秒で5回送信したら
-        if len(self.spam_count[user_id]) >= 5:
+        if len(
+            self.spam_count[user_id]
+        ) >= 5:
 
             try:
+
                 await message.channel.purge(
                     limit=20,
-                    check=lambda m: m.author.id == user_id
+                    check=lambda m:
+                        m.author.id == user_id
                 )
 
                 await message.author.timeout(
-                    datetime.timedelta(minutes=10),
+                    datetime.timedelta(
+                        minutes=10
+                    ),
                     reason="スパム送信"
                 )
 
@@ -542,31 +891,52 @@ class Events(commands.Cog):
                 )
 
             except discord.Forbidden:
+
                 pass
 
-            self.spam_count[user_id].clear()
-    # =========================
+            self.spam_count[
+                user_id
+            ].clear()
+
+    # =========================================================
     # メンションスパム検知
-    # =========================
-    async def check_mention_spam(self, message):
+    # =========================================================
+
+    async def check_mention_spam(
+        self,
+        message
+    ):
 
         automod = self.load_automod()
 
-        guild_id = str(message.guild.id)
+        guild_id = str(
+            message.guild.id
+        )
 
-        # OFFなら何もしない
-        if not automod.get(guild_id, {}).get("mention", False):
+        if not automod.get(
+            guild_id,
+            {}
+        ).get(
+            "mention",
+            False
+        ):
+
             return
 
-        # 5人以上メンション
-        if len(message.mentions) < 5:
+        if len(
+            message.mentions
+        ) < 5:
+
             return
 
         try:
+
             await message.delete()
 
             await message.author.timeout(
-                datetime.timedelta(minutes=10),
+                datetime.timedelta(
+                    minutes=10
+                ),
                 reason="メンションスパム"
             )
 
@@ -584,7 +954,9 @@ class Events(commands.Cog):
 
             embed.add_field(
                 name="メンション数",
-                value=str(len(message.mentions)),
+                value=str(
+                    len(message.mentions)
+                ),
                 inline=False
             )
 
@@ -601,44 +973,71 @@ class Events(commands.Cog):
             )
 
         except discord.Forbidden:
+
             pass
-    # =========================
+
+    # =========================================================
     # AutoMod設定
-    # =========================
+    # =========================================================
+
     @app_commands.command(
         name="automod",
         description="AutoModのON/OFFを設定します"
     )
-    @app_commands.checks.has_permissions(manage_guild=True)
+    @app_commands.checks.has_permissions(
+        manage_guild=True
+    )
     async def automod(
         self,
         interaction: discord.Interaction,
-        feature: Literal["spam", "invite", "ngword", "mention"],
-        state: Literal["on", "off"]
+        feature: Literal[
+            "spam",
+            "invite",
+            "ngword",
+            "mention"
+        ],
+        state: Literal[
+            "on",
+            "off"
+        ]
     ):
 
         data = self.load_automod()
 
-        guild_id = str(interaction.guild.id)
+        guild_id = str(
+            interaction.guild.id
+        )
 
         if guild_id not in data:
+
             data[guild_id] = {}
 
-        data[guild_id][feature] = (state == "on")
+        data[guild_id][feature] = (
+            state == "on"
+        )
 
-        with open(self.automod_file, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=4)
+        with open(
+            self.automod_file,
+            "w",
+            encoding="utf-8"
+        ) as f:
+
+            json.dump(
+                data,
+                f,
+                ensure_ascii=False,
+                indent=4
+            )
 
         await interaction.response.send_message(
             f"✅ **{feature}** を **{state.upper()}** にしました。",
             ephemeral=True
         )
 
-
-
-    # =========================
+    # =========================================================
     # Punish User
-    # =========================
+    # =========================================================
+
     async def punish_user(
         self,
         guild,
@@ -648,15 +1047,18 @@ class Events(commands.Cog):
 
         try:
 
-            member = guild.get_member(user.id)
+            member = guild.get_member(
+                user.id
+            )
 
             if member:
 
                 await member.timeout(
-                    datetime.timedelta(minutes=10),
+                    datetime.timedelta(
+                        minutes=10
+                    ),
                     reason=reason
                 )
-
 
                 embed = discord.Embed(
                     title="🚨 Anti Raid処罰",
@@ -664,13 +1066,11 @@ class Events(commands.Cog):
                     timestamp=datetime.datetime.now()
                 )
 
-
                 embed.add_field(
                     name="対象",
                     value=member.mention,
                     inline=False
                 )
-
 
                 embed.add_field(
                     name="理由",
@@ -678,13 +1078,11 @@ class Events(commands.Cog):
                     inline=False
                 )
 
-
                 await self.send_log(
                     guild,
                     embed,
                     "monitor"
                 )
-
 
         except Exception as e:
 
@@ -693,10 +1091,10 @@ class Events(commands.Cog):
                 e
             )
 
-
-    # =========================
+    # =========================================================
     # UNBAN検知
-    # =========================
+    # =========================================================
+
     @commands.Cog.listener()
     async def on_member_unban(
         self,
@@ -706,10 +1104,8 @@ class Events(commands.Cog):
 
         await asyncio.sleep(1)
 
-
-        executor="不明"
-        reason="理由なし"
-
+        executor = "不明"
+        reason = "理由なし"
 
         async for entry in guild.audit_logs(
             limit=5,
@@ -718,18 +1114,20 @@ class Events(commands.Cog):
 
             if entry.target.id == user.id:
 
-                executor=entry.user.mention
-                reason=entry.reason or "理由なし"
+                executor = entry.user.mention
+
+                reason = (
+                    entry.reason
+                    or "理由なし"
+                )
+
                 break
 
-
-
-        embed=discord.Embed(
+        embed = discord.Embed(
             title="🔓 BAN解除検知",
             color=discord.Color.green(),
             timestamp=datetime.datetime.now()
         )
-
 
         embed.add_field(
             name="対象",
@@ -737,13 +1135,11 @@ class Events(commands.Cog):
             inline=False
         )
 
-
         embed.add_field(
             name="実行者",
             value=executor,
             inline=False
         )
-
 
         embed.add_field(
             name="理由",
@@ -751,15 +1147,15 @@ class Events(commands.Cog):
             inline=False
         )
 
-
         await self.send_log(
             guild,
             embed,
             "monitor"
         )
-    # =========================
+
+    # =========================================================
     # BAN検知
-    # =========================
+    # =========================================================
 
     @commands.Cog.listener()
     async def on_member_ban(
@@ -773,7 +1169,6 @@ class Events(commands.Cog):
         executor = "不明"
         reason = "理由なし"
 
-
         async for entry in guild.audit_logs(
             limit=5,
             action=discord.AuditLogAction.ban
@@ -782,10 +1177,13 @@ class Events(commands.Cog):
             if entry.target.id == user.id:
 
                 executor = entry.user.mention
-                reason = entry.reason or "理由なし"
+
+                reason = (
+                    entry.reason
+                    or "理由なし"
+                )
+
                 break
-
-
 
         embed = discord.Embed(
             title="🔨 BAN検知",
@@ -793,13 +1191,11 @@ class Events(commands.Cog):
             timestamp=datetime.datetime.now()
         )
 
-
         embed.add_field(
             name="対象",
             value=f"{user}\n`{user.id}`",
             inline=False
         )
-
 
         embed.add_field(
             name="実行者",
@@ -807,13 +1203,11 @@ class Events(commands.Cog):
             inline=False
         )
 
-
         embed.add_field(
             name="理由",
             value=reason,
             inline=False
         )
-
 
         await self.send_log(
             guild,
@@ -821,31 +1215,33 @@ class Events(commands.Cog):
             "monitor"
         )
 
-
+        # =====================================================
         # Anti Raid BAN
+        # =====================================================
 
         now = datetime.datetime.now().timestamp()
 
         guild_id = guild.id
 
-
         if guild_id not in self.ban_count:
+
             self.ban_count[guild_id] = []
 
-
-        self.ban_count[guild_id].append(now)
-
+        self.ban_count[guild_id].append(
+            now
+        )
 
         self.ban_count[guild_id] = [
-            x for x in self.ban_count[guild_id]
+            x
+            for x in self.ban_count[guild_id]
             if now - x < 10
         ]
 
-
-        if len(self.ban_count[guild_id]) >= 5:
+        if len(
+            self.ban_count[guild_id]
+        ) >= 5:
 
             entry_user = None
-
 
             async for entry in guild.audit_logs(
                 limit=1,
@@ -853,8 +1249,8 @@ class Events(commands.Cog):
             ):
 
                 entry_user = entry.user
-                break
 
+                break
 
             if entry_user:
 
@@ -863,24 +1259,34 @@ class Events(commands.Cog):
                     entry_user,
                     "短時間大量BANによるAnti Raid"
                 )
-    
-    # =========================
-    # Kick / Leave
-    # =========================
-    @commands.Cog.listener()
-    async def on_member_remove(self, member):
 
-        print(f"退出イベント発生: {member}")
-        print("退出イベント発生")
+    # =========================================================
+    # Kick / Leave
+    # =========================================================
+
+    @commands.Cog.listener()
+    async def on_member_remove(
+        self,
+        member
+    ):
+
+        print(
+            f"退出イベント発生: {member}"
+        )
+
+        print(
+            "退出イベント発生"
+        )
 
         await asyncio.sleep(1)
 
         executor = "不明"
         reason = "理由なし"
 
-        # =========================
+        # =====================================================
         # Kick判定
-        # =========================
+        # =====================================================
+
         try:
 
             now = datetime.datetime.now(
@@ -895,11 +1301,19 @@ class Events(commands.Cog):
                 if entry.target.id != member.id:
                     continue
 
-                if (now - entry.created_at).total_seconds() > 5:
+                if (
+                    now - entry.created_at
+                ).total_seconds() > 5:
+
                     continue
 
                 executor = entry.user.mention
-                reason = entry.reason or "理由なし"
+
+                reason = (
+                    entry.reason
+                    or "理由なし"
+                )
+
                 break
 
         except Exception as e:
@@ -909,9 +1323,10 @@ class Events(commands.Cog):
                 e
             )
 
-        # =========================
+        # =====================================================
         # Kickの場合
-        # =========================
+        # =====================================================
+
         if executor != "不明":
 
             embed = discord.Embed(
@@ -946,11 +1361,15 @@ class Events(commands.Cog):
 
             return
 
-        # =========================
+        # =====================================================
         # 普通の退出
-        # =========================
+        # =====================================================
+
         embed = discord.Embed(
-            description=f"**{member.display_name}** がサーバーを退出しました",
+            description=(
+                f"**{member.display_name}** "
+                f"がサーバーを退出しました"
+            ),
             color=discord.Color.red(),
             timestamp=discord.utils.utcnow()
         )
@@ -964,9 +1383,10 @@ class Events(commands.Cog):
             url=member.display_avatar.url
         )
 
-        # =========================
+        # =====================================================
         # アカウント作成
-        # =========================
+        # =====================================================
+
         created = member.created_at
 
         now = discord.utils.utcnow()
@@ -974,21 +1394,28 @@ class Events(commands.Cog):
         delta = now - created
 
         days = delta.days
+
         hours = delta.seconds // 3600
-        minutes = (delta.seconds % 3600) // 60
+
+        minutes = (
+            delta.seconds % 3600
+        ) // 60
 
         embed.add_field(
             name="📅 アカウント作成",
             value=(
                 f"<t:{int(created.timestamp())}:F>\n"
-                f"経過: **{days}日 {hours}時間 {minutes}分**"
+                f"経過: **{days}日 "
+                f"{hours}時間 "
+                f"{minutes}分**"
             ),
             inline=False
         )
 
-        # =========================
+        # =====================================================
         # サーバー滞在期間
-        # =========================
+        # =====================================================
+
         if member.joined_at:
 
             joined = member.joined_at
@@ -996,21 +1423,28 @@ class Events(commands.Cog):
             stay = now - joined
 
             d = stay.days
+
             h = stay.seconds // 3600
-            m = (stay.seconds % 3600) // 60
+
+            m = (
+                stay.seconds % 3600
+            ) // 60
 
             embed.add_field(
                 name="📥 サーバー滞在期間",
                 value=(
                     f"<t:{int(joined.timestamp())}:F>\n"
-                    f"滞在: **{d}日 {h}時間 {m}分**"
+                    f"滞在: **{d}日 "
+                    f"{h}時間 "
+                    f"{m}分**"
                 ),
                 inline=False
             )
 
-        # =========================
+        # =====================================================
         # 退出後の人数
-        # =========================
+        # =====================================================
+
         embed.add_field(
             name="👥 退出後の人数",
             value=f"{member.guild.member_count}人",
@@ -1031,14 +1465,20 @@ class Events(commands.Cog):
             "joinleave"
         )
 
-
-    # =========================
+    # =========================================================
     # Join
-    # =========================
-    @commands.Cog.listener()
-    async def on_member_join(self, member):
+    # =========================================================
 
-        print(f"参加イベント発生: {member} ({member.id})")
+    @commands.Cog.listener()
+    async def on_member_join(
+        self,
+        member
+    ):
+
+        print(
+            f"参加イベント発生: "
+            f"{member} ({member.id})"
+        )
 
         now = discord.utils.utcnow()
 
@@ -1047,11 +1487,18 @@ class Events(commands.Cog):
         delta = now - created
 
         days = delta.days
+
         hours = delta.seconds // 3600
-        minutes = (delta.seconds % 3600) // 60
+
+        minutes = (
+            delta.seconds % 3600
+        ) // 60
 
         embed = discord.Embed(
-            description=f"**{member.display_name}** がサーバーに参加しました",
+            description=(
+                f"**{member.display_name}** "
+                f"がサーバーに参加しました"
+            ),
             color=discord.Color.green(),
             timestamp=discord.utils.utcnow()
         )
@@ -1069,7 +1516,9 @@ class Events(commands.Cog):
             name="📅 アカウント作成",
             value=(
                 f"<t:{int(created.timestamp())}:F>\n"
-                f"経過: **{days}日 {hours}時間 {minutes}分**"
+                f"経過: **{days}日 "
+                f"{hours}時間 "
+                f"{minutes}分**"
             ),
             inline=False
         )
@@ -1081,6 +1530,7 @@ class Events(commands.Cog):
         )
 
         if member.bot:
+
             embed.add_field(
                 name="🤖 アカウント",
                 value="Bot",
@@ -1088,9 +1538,12 @@ class Events(commands.Cog):
             )
 
         if days < 7:
+
             embed.add_field(
                 name="⚠ 注意",
-                value="作成から7日以内のアカウントです。",
+                value=(
+                    "作成から7日以内のアカウントです。"
+                ),
                 inline=False
             )
 
@@ -1102,10 +1555,13 @@ class Events(commands.Cog):
 
         try:
 
-            # =========================
+            # =================================================
             # 未認証ロール付与
-            # =========================
-            if os.path.exists("verify.json"):
+            # =================================================
+
+            if os.path.exists(
+                "verify.json"
+            ):
 
                 with open(
                     "verify.json",
@@ -1120,11 +1576,15 @@ class Events(commands.Cog):
                     {}
                 )
 
-                role_id = guild_verify.get("unverified")
+                role_id = guild_verify.get(
+                    "unverified"
+                )
 
                 if role_id:
 
-                    role = member.guild.get_role(role_id)
+                    role = member.guild.get_role(
+                        role_id
+                    )
 
                     if role:
 
@@ -1133,10 +1593,13 @@ class Events(commands.Cog):
                             reason="未認証ロール付与"
                         )
 
-            # =========================
+            # =================================================
             # Welcome
-            # =========================
-            if os.path.exists(self.welcome_file):
+            # =================================================
+
+            if os.path.exists(
+                self.welcome_file
+            ):
 
                 with open(
                     self.welcome_file,
@@ -1151,33 +1614,47 @@ class Events(commands.Cog):
                     {}
                 )
 
-                # OFFなら終了
-                if not guild_data.get("enabled", False):
+                if not guild_data.get(
+                    "enabled",
+                    False
+                ):
+
                     return
 
-                channel_id = guild_data.get("channel")
+                channel_id = guild_data.get(
+                    "channel"
+                )
 
                 if channel_id:
 
-                    channel = member.guild.get_channel(channel_id)
+                    channel = member.guild.get_channel(
+                        channel_id
+                    )
 
                     if channel:
 
                         welcome = discord.Embed(
                             title="🎉 新しいメンバー",
-                            description=f"{member.mention} さんようこそ！",
+                            description=(
+                                f"{member.mention} "
+                                f"さんようこそ！"
+                            ),
                             color=discord.Color.green()
                         )
 
-                        await channel.send(embed=welcome)
+                        await channel.send(
+                            embed=welcome
+                        )
 
-            # =========================
+            # =================================================
             # DM送信
-            # =========================
+            # =================================================
+
             dm_embed = discord.Embed(
                 title="🎉 サーバーへようこそ！",
                 description=(
-                    f"**{member.guild.name}** に参加していただきありがとうございます！\n\n"
+                    f"**{member.guild.name}** "
+                    "に参加していただきありがとうございます！\n\n"
                     "認証したあと\n"
                     "📜 ルールを確認して楽しく過ごしてください！"
                 ),
@@ -1186,9 +1663,12 @@ class Events(commands.Cog):
 
             try:
 
-                await member.send(embed=dm_embed)
+                await member.send(
+                    embed=dm_embed
+                )
 
             except discord.Forbidden:
+
                 pass
 
         except Exception as e:
@@ -1197,16 +1677,24 @@ class Events(commands.Cog):
                 "Welcome Error:",
                 repr(e)
             )
-    # =========================
+
+    # =========================================================
     # Role Create
-    # =========================
+    # =========================================================
+
     @commands.Cog.listener()
-    async def on_guild_role_create(self, role):
+    async def on_guild_role_create(
+        self,
+        role
+    ):
 
         executor = "不明"
 
         try:
-            now = datetime.datetime.now(datetime.timezone.utc)
+
+            now = datetime.datetime.now(
+                datetime.timezone.utc
+            )
 
             async for entry in role.guild.audit_logs(
                 limit=5,
@@ -1216,14 +1704,22 @@ class Events(commands.Cog):
                 if entry.target.id != role.id:
                     continue
 
-                if (now - entry.created_at).total_seconds() > 5:
+                if (
+                    now - entry.created_at
+                ).total_seconds() > 5:
+
                     continue
 
                 executor = entry.user.mention
+
                 break
 
         except Exception as e:
-            print("Role Create Audit Error:", e)
+
+            print(
+                "Role Create Audit Error:",
+                e
+            )
 
         embed = discord.Embed(
             title="🎭 ロール作成",
@@ -1249,25 +1745,35 @@ class Events(commands.Cog):
             "monitor"
         )
 
-
-    # =========================
+    # =========================================================
     # Role Delete
-    # =========================
+    # =========================================================
+
     @commands.Cog.listener()
-    async def on_guild_role_delete(self, role):
+    async def on_guild_role_delete(
+        self,
+        role
+    ):
 
         executor = "不明"
 
         try:
+
             async for entry in role.guild.audit_logs(
                 limit=5,
                 action=discord.AuditLogAction.role_delete
             ):
+
                 executor = entry.user.mention
+
                 break
 
         except Exception as e:
-            print("Role Delete Audit Error:", e)
+
+            print(
+                "Role Delete Audit Error:",
+                e
+            )
 
         embed = discord.Embed(
             title="🗑 ロール削除",
@@ -1294,23 +1800,36 @@ class Events(commands.Cog):
         )
 
         now = datetime.datetime.now().timestamp()
+
         guild_id = role.guild.id
 
         if guild_id not in self.role_delete_count:
-            self.role_delete_count[guild_id] = []
 
-        self.role_delete_count[guild_id].append(now)
+            self.role_delete_count[
+                guild_id
+            ] = []
 
-        self.role_delete_count[guild_id] = [
-            x for x in self.role_delete_count[guild_id]
+        self.role_delete_count[
+            guild_id
+        ].append(now)
+
+        self.role_delete_count[
+            guild_id
+        ] = [
+            x
+            for x in self.role_delete_count[guild_id]
             if now - x < 10
         ]
 
-        if len(self.role_delete_count[guild_id]) >= 5:
+        if len(
+            self.role_delete_count[guild_id]
+        ) >= 5:
 
             embed = discord.Embed(
                 title="🚨 ロール削除荒らし検知",
-                description="10秒以内に5個以上ロール削除",
+                description=(
+                    "10秒以内に5個以上ロール削除"
+                ),
                 color=discord.Color.red()
             )
 
@@ -1320,10 +1839,14 @@ class Events(commands.Cog):
                 "monitor"
             )
 
-            self.role_delete_count[guild_id].clear()
-    # =========================
+            self.role_delete_count[
+                guild_id
+            ].clear()
+
+    # =========================================================
     # Channel Create
-    # =========================
+    # =========================================================
+
     @commands.Cog.listener()
     async def on_guild_channel_create(
         self,
@@ -1331,7 +1854,6 @@ class Events(commands.Cog):
     ):
 
         executor = "不明"
-
 
         try:
 
@@ -1343,8 +1865,8 @@ class Events(commands.Cog):
                 if entry.target.id == channel.id:
 
                     executor = entry.user.mention
-                    break
 
+                    break
 
         except Exception as e:
 
@@ -1353,13 +1875,11 @@ class Events(commands.Cog):
                 e
             )
 
-
         embed = discord.Embed(
             title="📁 チャンネル作成",
             color=discord.Color.green(),
             timestamp=datetime.datetime.now()
         )
-
 
         embed.add_field(
             name="チャンネル",
@@ -1367,22 +1887,22 @@ class Events(commands.Cog):
             inline=False
         )
 
-
         embed.add_field(
             name="実行者",
             value=executor,
             inline=False
         )
 
-
         await self.send_log(
             channel.guild,
             embed,
             "monitor"
         )
-    # =========================
+
+    # =========================================================
     # Channel Delete
-    # =========================
+    # =========================================================
+
     @commands.Cog.listener()
     async def on_guild_channel_delete(
         self,
@@ -1390,7 +1910,6 @@ class Events(commands.Cog):
     ):
 
         executor = "不明"
-
 
         try:
 
@@ -1402,8 +1921,8 @@ class Events(commands.Cog):
                 if entry.target.id == channel.id:
 
                     executor = entry.user.mention
-                    break
 
+                    break
 
         except Exception as e:
 
@@ -1412,13 +1931,11 @@ class Events(commands.Cog):
                 e
             )
 
-
         embed = discord.Embed(
             title="🗑 チャンネル削除",
             color=discord.Color.red(),
             timestamp=datetime.datetime.now()
         )
-
 
         embed.add_field(
             name="チャンネル",
@@ -1426,68 +1943,76 @@ class Events(commands.Cog):
             inline=False
         )
 
-
         embed.add_field(
             name="実行者",
             value=executor,
             inline=False
         )
 
-
         await self.send_log(
             channel.guild,
             embed,
             "monitor"
         )
-    # =========================
-    # Anti Channel Delete Raid
-    # =========================
+
+        # =====================================================
+        # Anti Channel Delete Raid
+        # =====================================================
 
         now = datetime.datetime.now().timestamp()
 
-
         guild_id = channel.guild.id
-
 
         if guild_id not in self.channel_delete_count:
 
-            self.channel_delete_count[guild_id] = []
+            self.channel_delete_count[
+                guild_id
+            ] = []
 
+        self.channel_delete_count[
+            guild_id
+        ].append(now)
 
-        self.channel_delete_count[guild_id].append(
-            now
-        )
-
-
-        self.channel_delete_count[guild_id] = [
-            x for x in self.channel_delete_count[guild_id]
+        self.channel_delete_count[
+            guild_id
+        ] = [
+            x
+            for x in self.channel_delete_count[guild_id]
             if now - x < 10
         ]
 
-
-        if len(self.channel_delete_count[guild_id]) >= 3:
-
+        if len(
+            self.channel_delete_count[guild_id]
+        ) >= 3:
 
             embed = discord.Embed(
                 title="🚨 チャンネル削除荒らし検知",
-                description="10秒以内に3個以上削除されました",
+                description=(
+                    "10秒以内に3個以上削除されました"
+                ),
                 color=discord.Color.red()
             )
-
 
             await self.send_log(
                 channel.guild,
                 embed,
                 "monitor"
             )
-   
 
-            self.channel_delete_count[guild_id].clear()
-    # =========================
+            self.channel_delete_count[
+                guild_id
+            ].clear()
+
+    # =========================================================
     # Channel Update
-    # =========================
+    # =========================================================
+
     @commands.Cog.listener()
-    async def on_guild_channel_update(self, before, after):
+    async def on_guild_channel_update(
+        self,
+        before,
+        after
+    ):
 
         embed = discord.Embed(
             title="⚙️ チャンネル変更",
@@ -1504,22 +2029,32 @@ class Events(commands.Cog):
         )
 
         if before.name != after.name:
+
             changed = True
+
             embed.add_field(
                 name="名前変更",
-                value=f"{before.name} → {after.name}",
+                value=(
+                    f"{before.name} → "
+                    f"{after.name}"
+                ),
                 inline=False
             )
 
         if before.topic != after.topic:
+
             changed = True
+
             embed.add_field(
                 name="トピック変更",
                 value="変更あり",
                 inline=False
             )
+
         if before.overwrites != after.overwrites:
+
             changed = True
+
             embed.add_field(
                 name="権限変更",
                 value="権限設定が変更されました",
@@ -1527,15 +2062,17 @@ class Events(commands.Cog):
             )
 
         if changed:
+
             await self.send_log(
                 after.guild,
                 embed,
                 "monitor"
             )
 
-    # =========================
+    # =========================================================
     # Voice State Update
-    # =========================
+    # =========================================================
+
     @commands.Cog.listener()
     async def on_voice_state_update(
         self,
@@ -1547,14 +2084,13 @@ class Events(commands.Cog):
         if member.bot:
             return
 
-
         embed = None
 
-
-
         # VC参加
-        if before.channel is None and after.channel is not None:
-
+        if (
+            before.channel is None
+            and after.channel is not None
+        ):
 
             embed = discord.Embed(
                 title="🔊 VC参加",
@@ -1562,13 +2098,11 @@ class Events(commands.Cog):
                 timestamp=datetime.datetime.now()
             )
 
-
             embed.add_field(
                 name="ユーザー",
                 value=member.mention,
                 inline=False
             )
-
 
             embed.add_field(
                 name="参加先",
@@ -1576,11 +2110,11 @@ class Events(commands.Cog):
                 inline=False
             )
 
-
-
         # VC退出
-        elif before.channel is not None and after.channel is None:
-
+        elif (
+            before.channel is not None
+            and after.channel is None
+        ):
 
             embed = discord.Embed(
                 title="🔇 VC退出",
@@ -1588,21 +2122,17 @@ class Events(commands.Cog):
                 timestamp=datetime.datetime.now()
             )
 
-
             embed.add_field(
                 name="ユーザー",
                 value=member.mention,
                 inline=False
             )
 
-
             embed.add_field(
                 name="退出元",
                 value=before.channel.mention,
                 inline=False
             )
-
-
 
         # VC移動
         elif (
@@ -1611,13 +2141,11 @@ class Events(commands.Cog):
             and before.channel.id != after.channel.id
         ):
 
-
             embed = discord.Embed(
                 title="🔀 VC移動",
                 color=discord.Color.orange(),
                 timestamp=datetime.datetime.now()
             )
-
 
             embed.add_field(
                 name="ユーザー",
@@ -1625,13 +2153,11 @@ class Events(commands.Cog):
                 inline=False
             )
 
-
             embed.add_field(
                 name="移動前",
                 value=before.channel.mention,
                 inline=False
             )
-
 
             embed.add_field(
                 name="移動後",
@@ -1639,19 +2165,18 @@ class Events(commands.Cog):
                 inline=False
             )
 
-
-
         if embed:
-
 
             await self.send_log(
                 member.guild,
                 embed,
                 "monitor"
-            ) 
-    # =========================
+            )
+
+    # =========================================================
     # Guild Update
-    # =========================
+    # =========================================================
+
     @commands.Cog.listener()
     async def on_guild_update(
         self,
@@ -1661,13 +2186,13 @@ class Events(commands.Cog):
 
         changes = []
 
-
         if before.name != after.name:
 
             changes.append(
-                f"名前変更\n`{before.name}` → `{after.name}`"
+                f"名前変更\n"
+                f"`{before.name}` → "
+                f"`{after.name}`"
             )
-
 
         if before.icon != after.icon:
 
@@ -1675,18 +2200,14 @@ class Events(commands.Cog):
                 "サーバーアイコン変更"
             )
 
-
         if before.description != after.description:
 
             changes.append(
                 "サーバー説明変更"
             )
 
-
         if not changes:
             return
-
-
 
         embed = discord.Embed(
             title="⚙️ サーバー設定変更",
@@ -1694,28 +2215,27 @@ class Events(commands.Cog):
             timestamp=datetime.datetime.now()
         )
 
-
         embed.add_field(
             name="変更内容",
             value="\n\n".join(changes),
             inline=False
         )
 
-
         await self.send_log(
             after,
             embed,
             "monitor"
-        ) 
-    # =========================
+        )
+
+    # =========================================================
     # Invite Create
-    # =========================
+    # =========================================================
+
     @commands.Cog.listener()
     async def on_invite_create(
         self,
         invite
     ):
-
 
         embed = discord.Embed(
             title="🔗 招待作成",
@@ -1723,27 +2243,31 @@ class Events(commands.Cog):
             timestamp=datetime.datetime.now()
         )
 
-
         embed.add_field(
             name="作成者",
-            value=invite.inviter.mention if invite.inviter else "不明",
+            value=(
+                invite.inviter.mention
+                if invite.inviter
+                else "不明"
+            ),
             inline=False
         )
-
 
         embed.add_field(
             name="チャンネル",
-            value=invite.channel.mention if invite.channel else "不明",
+            value=(
+                invite.channel.mention
+                if invite.channel
+                else "不明"
+            ),
             inline=False
         )
-
 
         embed.add_field(
             name="コード",
             value=f"`{invite.code}`",
             inline=False
         )
-
 
         if invite.max_age:
 
@@ -1761,21 +2285,21 @@ class Events(commands.Cog):
                 inline=False
             )
 
-
         await self.send_log(
             invite.guild,
             embed,
             "monitor"
-        )  
-    # =========================
+        )
+
+    # =========================================================
     # Invite Delete
-    # =========================
+    # =========================================================
+
     @commands.Cog.listener()
     async def on_invite_delete(
         self,
         invite
     ):
-
 
         embed = discord.Embed(
             title="🗑 招待削除",
@@ -1783,13 +2307,11 @@ class Events(commands.Cog):
             timestamp=datetime.datetime.now()
         )
 
-
         embed.add_field(
             name="コード",
             value=f"`{invite.code}`",
             inline=False
         )
-
 
         if invite.channel:
 
@@ -1799,15 +2321,16 @@ class Events(commands.Cog):
                 inline=False
             )
 
-
         await self.send_log(
             invite.guild,
             embed,
             "monitor"
         )
-    # =========================
+
+    # =========================================================
     # Role Update
-    # =========================
+    # =========================================================
+
     @commands.Cog.listener()
     async def on_guild_role_update(
         self,
@@ -1817,13 +2340,13 @@ class Events(commands.Cog):
 
         changes = []
 
-
         if before.name != after.name:
 
             changes.append(
-                f"名前変更\n`{before.name}` → `{after.name}`"
+                f"名前変更\n"
+                f"`{before.name}` → "
+                f"`{after.name}`"
             )
-
 
         if before.permissions != after.permissions:
 
@@ -1831,18 +2354,14 @@ class Events(commands.Cog):
                 "権限変更"
             )
 
-
         if before.color != after.color:
 
             changes.append(
                 "色変更"
             )
 
-
         if not changes:
             return
-
-
 
         embed = discord.Embed(
             title="🎭 ロール変更",
@@ -1850,13 +2369,11 @@ class Events(commands.Cog):
             timestamp=datetime.datetime.now()
         )
 
-
         embed.add_field(
             name="ロール",
             value=f"{after.name}\n`{after.id}`",
             inline=False
         )
-
 
         embed.add_field(
             name="変更内容",
@@ -1864,30 +2381,45 @@ class Events(commands.Cog):
             inline=False
         )
 
-
         await self.send_log(
             after.guild,
             embed,
             "monitor"
         )
-    
+
+    # =========================================================
+    # Slash Command Error
+    # =========================================================
+
     async def cog_app_command_error(
         self,
         interaction: discord.Interaction,
         error: app_commands.AppCommandError
     ):
-        if isinstance(error, app_commands.MissingPermissions):
-            await interaction.response.send_message(
-                "❌ このコマンドを使う権限がありません。",
-                ephemeral=True
-            )
-    
-    
+
+        if isinstance(
+            error,
+            app_commands.MissingPermissions
+        ):
+
+            if interaction.response.is_done():
+
+                await interaction.followup.send(
+                    "❌ このコマンドを使う権限がありません。",
+                    ephemeral=True
+                )
+
+            else:
+
+                await interaction.response.send_message(
+                    "❌ このコマンドを使う権限がありません。",
+                    ephemeral=True
+                )
 
 
-# =========================
+# =========================================================
 # Setup
-# =========================
+# =========================================================
 
 async def setup(bot):
 
